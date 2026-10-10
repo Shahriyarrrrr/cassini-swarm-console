@@ -1,0 +1,2028 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="A multi-agent orchestration console: seven named agents plan, build, review and rework their way to a signed release across a real dependency graph.">
+<meta property="og:title" content="Cassini Swarm Console">
+<meta property="og:description" content="Seven named AI agents negotiate, review, reject and rework their way to a signed release. Watch the message bus live.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    color-scheme: light;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  body{ margin:0; font: 14px system-ui, -apple-system, sans-serif; }
+  img{ max-width:100%; }
+  [hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+<title>Cassini Swarm Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+/* Layout concept: a fixed mission-control console — header + metric rail above a three-column
+   operations floor (agent roster | live swarm graph | message bus), with the work products
+   (task ledger + build output) on a second tier below. Collapses to one column on phones. */
+:root{
+  /* dark-first: this console is read in a dark room */
+  --bg:#0A0C11;
+  --surface:#111520;
+  --surface-2:#171C29;
+  --surface-3:#1E2433;
+  --line:#242B3C;
+  --line-soft:#1A2030;
+  --fg:#E5E9F3;
+  --fg-dim:#929CB2;
+  --fg-faint:#5D667B;
+  --accent:#F0A830;
+  --accent-2:#45C6D8;
+  --ok:#3FBF86;
+  --warn:#E8B04B;
+  --bad:#F0617A;
+  --review:#A98BF5;
+  --grid:rgba(255,255,255,.035);
+  --glow:.55;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#EFF1F6;
+    --surface:#FFFFFF;
+    --surface-2:#F3F5FA;
+    --surface-3:#E7EBF3;
+    --line:#D2D8E6;
+    --line-soft:#E2E7F0;
+    --fg:#101521;
+    --fg-dim:#525B70;
+    --fg-faint:#8A93A6;
+    --accent:#A8630A;
+    --accent-2:#0C7A8E;
+    --ok:#1F8A5C;
+    --warn:#9A6F10;
+    --bad:#C9304C;
+    --review:#6F4ACB;
+    --grid:rgba(10,20,40,.05);
+    --glow:0;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#EFF1F6;
+  --surface:#FFFFFF;
+  --surface-2:#F3F5FA;
+  --surface-3:#E7EBF3;
+  --line:#D2D8E6;
+  --line-soft:#E2E7F0;
+  --fg:#101521;
+  --fg-dim:#525B70;
+  --fg-faint:#8A93A6;
+  --accent:#A8630A;
+  --accent-2:#0C7A8E;
+  --ok:#1F8A5C;
+  --warn:#9A6F10;
+  --bad:#C9304C;
+  --review:#6F4ACB;
+  --grid:rgba(10,20,40,.05);
+  --glow:0;
+  color-scheme: light;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.shell{
+  padding-inline:18px;
+  padding-block:16px 28px;
+  max-width:1680px;
+  margin:0 auto;
+}
+h1,h2,h3,.display{font-family:"Saira","IBM Plex Sans",sans-serif;text-wrap:balance;margin:0}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* ---------- header ---------- */
+.masthead{
+  display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;
+  border-bottom:1px solid var(--line);padding-bottom:14px;
+}
+.brand{display:flex;align-items:center;gap:13px;min-width:0}
+.sigil{
+  width:38px;height:38px;flex:none;border-radius:10px;
+  background:
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent) 38%, transparent) 0 22%, transparent 23%),
+    linear-gradient(145deg, var(--surface-3), var(--surface));
+  border:1px solid var(--line);
+  position:relative;
+}
+.sigil::after{
+  content:"";position:absolute;inset:7px;border-radius:50%;
+  border:1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  animation:spin 9s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.brand h1{font-size:19px;font-weight:700;letter-spacing:.055em;text-transform:uppercase}
+.brand p{margin:1px 0 0;font-size:11.5px;color:var(--fg-faint);letter-spacing:.14em;text-transform:uppercase;font-family:"IBM Plex Mono",monospace}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ctl{
+  background:var(--surface);border:1px solid var(--line);border-radius:7px;
+  padding:7px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;
+  font-family:"IBM Plex Mono",monospace;letter-spacing:.03em;
+  transition:border-color .16s, background .16s, color .16s;
+}
+.ctl:hover{border-color:color-mix(in srgb, var(--accent) 60%, var(--line));background:var(--surface-2)}
+.ctl[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.ctl.primary{background:color-mix(in srgb, var(--accent) 16%, var(--surface));border-color:color-mix(in srgb,var(--accent) 50%, var(--line));color:var(--accent);font-weight:600}
+.ctl-group{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface)}
+.ctl-group .ctl{border:0;border-radius:0;border-left:1px solid var(--line-soft)}
+.ctl-group .ctl:first-child{border-left:0}
+select.ctl{appearance:none;padding-right:26px;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 14px) 48%,calc(100% - 9px) 48%;background-size:5px 5px;background-repeat:no-repeat}
+
+/* ---------- mission strip ---------- */
+.mission{
+  margin-top:16px;display:grid;gap:14px;
+  grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);
+  align-items:stretch;
+}
+.mission-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+  position:relative;overflow:hidden;min-width:0;
+}
+.mission-card::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg, color-mix(in srgb,var(--accent) 7%, transparent), transparent 55%);
+}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--fg-faint)}
+.mission-card h2{font-size:17px;font-weight:600;margin-top:4px;letter-spacing:.01em}
+.mission-card p{margin:6px 0 0;color:var(--fg-dim);font-size:13px;max-width:62ch}
+.phase{
+  display:inline-flex;align-items:center;gap:7px;margin-top:11px;font-family:"IBM Plex Mono",monospace;
+  font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);
+}
+.phase .dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 0 currentColor;animation:ping 1.9s ease-out infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 70%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.metric{background:var(--surface);padding:11px 13px;min-width:0}
+.metric .k{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.metric .v{font-family:"Saira",sans-serif;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;margin-top:2px}
+.metric .v small{font-size:12px;color:var(--fg-faint);font-weight:500}
+
+/* ---------- operations floor ---------- */
+.floor{
+  margin-top:14px;display:grid;gap:14px;
+  grid-template-columns:268px minmax(0,1fr) 340px;
+  align-items:start;
+}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;min-width:0;display:flex;flex-direction:column}
+.panel > header{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 13px;border-bottom:1px solid var(--line-soft);
+}
+.panel > header h3{font-size:12px;font-weight:600;letter-spacing:.17em;text-transform:uppercase;color:var(--fg-dim);font-family:"IBM Plex Mono",monospace}
+.panel .count{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--fg-faint);font-variant-numeric:tabular-nums}
+
+/* roster */
+.roster{display:flex;flex-direction:column;gap:1px;background:var(--line-soft);border-radius:0 0 12px 12px;overflow:hidden}
+.agent{
+  background:var(--surface);border:0;border-left:3px solid var(--ah);text-align:left;width:100%;
+  padding:9px 12px;cursor:pointer;display:grid;gap:3px;transition:background .15s;
+}
+.agent:hover{background:var(--surface-2)}
+.agent[aria-pressed="true"]{background:var(--surface-2)}
+.agent-top{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.agent-name{font-family:"Saira",sans-serif;font-weight:600;font-size:13.5px;letter-spacing:.09em;color:var(--ah)}
+.agent-role{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-faint);font-family:"IBM Plex Mono",monospace}
+.agent-state{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--fg-dim);font-family:"IBM Plex Mono",monospace;min-width:0}
+.agent-state .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pip{width:6px;height:6px;border-radius:50%;flex:none;background:var(--fg-faint)}
+.pip.working{background:var(--ok);animation:ping 1.4s ease-out infinite}
+.pip.blocked{background:var(--bad);animation:ping 1s ease-out infinite}
+.pip.review{background:var(--review);animation:ping 1.4s ease-out infinite}
+.bar{height:3px;border-radius:2px;background:var(--surface-3);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ah);width:0;transition:width .2s linear}
+
+/* graph */
+.stage{position:relative;border-radius:0 0 12px 12px;overflow:hidden;background:
+  radial-gradient(ellipse at 50% 42%, color-mix(in srgb,var(--accent) 5%, transparent), transparent 62%), var(--surface);}
+#graph{display:block;width:100%;height:clamp(420px,52vh,580px);touch-action:manipulation}
+.legend{
+  position:absolute;left:12px;bottom:10px;display:flex;flex-wrap:wrap;gap:4px 12px;
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.07em;color:var(--fg-faint);
+  pointer-events:none;text-transform:uppercase;max-width:calc(100% - 24px);
+}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:14px;height:2px;border-radius:2px;background:currentColor;display:inline-block}
+
+/* bus / transcript */
+.bus{
+  height:clamp(420px,52vh,580px);overflow-y:auto;overflow-x:hidden;
+  padding:4px 0 10px;scrollbar-width:thin;
+}
+.msg{
+  display:grid;grid-template-columns:52px minmax(0,1fr);gap:9px;
+  padding:6px 13px;border-bottom:1px solid var(--line-soft);
+  animation:slip .22s ease-out;
+}
+@keyframes slip{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.msg time{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--fg-faint);padding-top:2px;font-variant-numeric:tabular-nums}
+.msg .hdr{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;font-family:"IBM Plex Mono",monospace}
+.who{font-weight:600;letter-spacing:.07em}
+.arrow{color:var(--fg-faint)}
+.tag{
+  font-size:9.5px;letter-spacing:.11em;padding:1px 5px;border-radius:3px;text-transform:uppercase;
+  border:1px solid currentColor;opacity:.92;
+}
+.msg .body{font-size:12.5px;color:var(--fg-dim);margin-top:2px;overflow-wrap:anywhere}
+.msg .body code{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--fg);background:var(--surface-2);padding:0 4px;border-radius:3px}
+.msg.dim{opacity:.34}
+.msg.composing{background:var(--surface-2)}
+.msg.composing .body{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;line-height:1.5;color:var(--fg-faint);
+  white-space:pre-wrap;max-height:78px;overflow:hidden;margin-top:3px;
+  mask-image:linear-gradient(to bottom,#000 55%,transparent);
+}
+.caret{display:inline-block;width:6px;height:11px;background:currentColor;vertical-align:-1px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* live-mode controls */
+.objective{
+  margin-top:12px;display:grid;gap:9px;grid-template-columns:minmax(0,1fr) auto;align-items:start;
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+}
+.objective label{display:block;margin-bottom:5px}
+.objective textarea{
+  width:100%;min-height:54px;resize:vertical;background:var(--surface-2);color:var(--fg);
+  border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;
+}
+.objective textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.preset{
+  background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.06em;color:var(--fg-dim);cursor:pointer;
+}
+.preset:hover{border-color:var(--accent);color:var(--accent)}
+.notice{
+  margin-top:12px;border:1px solid var(--nc,var(--line));border-radius:10px;padding:10px 13px;
+  background:color-mix(in srgb, var(--nc, var(--line)) 9%, var(--surface));
+  font-size:12.5px;color:var(--fg-dim);display:flex;gap:9px;align-items:flex-start;
+}
+.notice b{color:var(--nc,var(--fg));font-weight:600}
+.notice .mono{font-size:11px}
+@media (max-width:880px){ .objective{grid-template-columns:minmax(0,1fr)} }
+
+/* ---------- lower tier ---------- */
+.tier2{margin-top:14px;display:grid;gap:14px;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+.lanes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line-soft);border-radius:0 0 12px 12px;overflow:hidden}
+.lane{background:var(--surface);padding:9px 9px 12px;min-width:0;min-height:150px}
+.lane h4{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--fg-faint);margin:0 0 7px;display:flex;justify-content:space-between;gap:4px}
+.card{
+  background:var(--surface-2);border:1px solid var(--line-soft);border-left:2px solid var(--ah);
+  border-radius:5px;padding:6px 7px;margin-bottom:5px;animation:slip .22s ease-out;
+}
+.card .id{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--ah);letter-spacing:.08em}
+.card .t{font-size:11.5px;line-height:1.35;margin-top:1px;color:var(--fg)}
+.card.done{opacity:.55}
+.card.done .t{text-decoration:line-through;text-decoration-color:var(--fg-faint)}
+.card .mini{height:2px;background:var(--surface-3);border-radius:2px;margin-top:5px;overflow:hidden}
+.card .mini i{display:block;height:100%;background:var(--ah);width:0}
+
+/* build output */
+.build{display:flex;flex-direction:column;min-height:150px}
+.readiness{padding:10px 13px;border-bottom:1px solid var(--line-soft)}
+.readiness .row{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-faint)}
+.readiness .track{height:5px;border-radius:3px;background:var(--surface-3);margin-top:6px;overflow:hidden}
+.readiness .track i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,var(--accent-2),var(--accent));transition:width .3s}
+.files{list-style:none;margin:0;padding:0;max-height:330px;overflow-y:auto;scrollbar-width:thin}
+.file{border-bottom:1px solid var(--line-soft)}
+.file > button{
+  width:100%;background:none;border:0;text-align:left;cursor:pointer;padding:7px 13px;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;transition:background .15s;
+}
+.file > button:hover{background:var(--surface-2)}
+.fpath{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmeta{display:flex;align-items:center;gap:7px;font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--fg-faint);white-space:nowrap}
+.chip{font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:1px 5px;border-radius:3px;border:1px solid currentColor}
+.chip.v2{color:var(--warn)}
+.chip.merged{color:var(--ok)}
+.snippet{padding:0 13px 11px;display:none}
+.file.open .snippet{display:block}
+.snippet pre{
+  margin:0;background:var(--bg);border:1px solid var(--line-soft);border-radius:6px;
+  padding:9px 11px;overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:11px;line-height:1.65;color:var(--fg-dim);
+}
+.snippet pre b{color:var(--accent-2);font-weight:500}
+.empty{padding:22px 14px;text-align:center;color:var(--fg-faint);font-size:12px}
+.empty .mono{display:block;margin-top:5px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase}
+
+/* release banner */
+.release{
+  margin-top:14px;border:1px solid color-mix(in srgb,var(--accent) 45%, var(--line));border-radius:12px;
+  background:linear-gradient(120deg, color-mix(in srgb,var(--accent) 11%, var(--surface)), var(--surface) 62%);
+  padding:16px 18px;display:grid;gap:12px;grid-template-columns:minmax(0,1fr) auto;align-items:center;
+  animation:slip .4s ease-out;
+}
+.release h3{font-size:16px;font-weight:600;letter-spacing:.02em}
+.release p{margin:4px 0 0;color:var(--fg-dim);font-size:13px;max-width:70ch}
+.release .stats{display:flex;gap:18px;flex-wrap:wrap}
+.release .stats div{text-align:right}
+.release .stats .n{font-family:"Saira",sans-serif;font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)}
+.release .stats .l{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-faint)}
+
+/* agent dossier */
+.dossier{padding:11px 13px;border-top:1px solid var(--line-soft);background:var(--surface-2);border-radius:0 0 12px 12px}
+.dossier h4{font-family:"Saira",sans-serif;font-size:14px;letter-spacing:.08em;color:var(--dh);margin:0}
+.dossier p{margin:4px 0 0;font-size:12px;color:var(--fg-dim)}
+.dossier dl{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:9px 0 0}
+.dossier dt{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--fg-faint)}
+.dossier dd{margin:1px 0 0;font-family:"Saira",sans-serif;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+
+.foot{margin-top:18px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--fg-faint)}
+
+@media (max-width:1180px){
+  .floor{grid-template-columns:minmax(0,1fr)}
+  .floor .p-graph{order:-1}
+  .bus{height:300px}
+  .roster{max-height:none}
+}
+@media (max-width:880px){
+  .mission{grid-template-columns:minmax(0,1fr)}
+  .tier2{grid-template-columns:minmax(0,1fr)}
+  .lanes{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .release{grid-template-columns:minmax(0,1fr)}
+  .release .stats div{text-align:left}
+}
+@media (max-width:560px){
+  .shell{padding-inline:14px}
+  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lanes{grid-template-columns:minmax(0,1fr)}
+  #graph{height:400px}
+  .brand h1{font-size:16px}
+  .controls{width:100%}
+  .controls .ctl{flex:1 1 auto;justify-content:center}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <div class="brand">
+      <div class="sigil" aria-hidden="true"></div>
+      <div>
+        <h1>Cassini Swarm Console</h1>
+        <p>Multi-agent orchestration &middot; live bus</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="ctl-group" role="group" aria-label="Engine mode">
+        <button class="ctl mode" data-m="sim" aria-pressed="true">◇ Scripted</button>
+        <button class="ctl mode" data-m="live" aria-pressed="false">◆ Live Claude</button>
+      </div>
+      <select class="ctl" id="missionSel" aria-label="Mission"></select>
+      <button class="ctl primary" id="runBtn" aria-pressed="false">▶ Run swarm</button>
+      <button class="ctl" id="stopBtn" hidden>■ Stop</button>
+      <div class="ctl-group" id="speedGroup" role="group" aria-label="Playback speed">
+        <button class="ctl spd" data-s="1">1×</button>
+        <button class="ctl spd" data-s="2" aria-pressed="true">2×</button>
+        <button class="ctl spd" data-s="4">4×</button>
+      </div>
+      <button class="ctl" id="resetBtn">⟲ Reset</button>
+      <button class="ctl" id="themeBtn" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <section class="objective" id="objectivePanel" hidden>
+    <div>
+      <label class="eyebrow" for="objective">Objective for the swarm</label>
+      <textarea id="objective" spellcheck="false"></textarea>
+      <div class="presets" id="presets"></div>
+    </div>
+    <div style="min-width:0">
+      <div class="eyebrow">Engine</div>
+      <p class="mono" id="liveStatus" style="margin:5px 0 0;font-size:11.5px;color:var(--fg-dim);line-height:1.6">checking…</p>
+    </div>
+  </section>
+
+  <div id="noticeSlot"></div>
+
+  <section class="mission" aria-label="Mission brief">
+    <div class="mission-card">
+      <div class="eyebrow" id="mCode">Mission —</div>
+      <h2 id="mTitle">—</h2>
+      <p id="mBrief">—</p>
+      <div class="phase"><span class="dot"></span><span id="mPhase">Standing by</span></div>
+    </div>
+    <div class="metrics" id="metrics"></div>
+  </section>
+
+  <section class="floor">
+    <div class="panel p-roster">
+      <header><h3>Agent roster</h3><span class="count" id="rosterCount">7 online</span></header>
+      <div class="roster" id="roster"></div>
+      <div class="dossier" id="dossier" hidden></div>
+    </div>
+
+    <div class="panel p-graph">
+      <header>
+        <h3>Swarm topology</h3>
+        <span class="count" id="graphCount">0 packets in flight</span>
+      </header>
+      <div class="stage">
+        <canvas id="graph" aria-label="Live diagram of agents exchanging messages"></canvas>
+        <div class="legend">
+          <span style="color:var(--accent)"><i></i>assign</span>
+          <span style="color:var(--accent-2)"><i></i>query</span>
+          <span style="color:var(--review)"><i></i>review</span>
+          <span style="color:var(--bad)"><i></i>reject</span>
+          <span style="color:var(--ok)"><i></i>approve / handoff</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel p-bus">
+      <header><h3>Message bus</h3><span class="count" id="busCount">0 msgs</span></header>
+      <div class="bus" id="bus" role="log" aria-live="polite" aria-relevant="additions">
+        <div class="empty">The bus is quiet.<span class="mono">Press run swarm to open the mission</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tier2">
+    <div class="panel">
+      <header><h3>Task ledger</h3><span class="count" id="ledgerCount">0 / 0</span></header>
+      <div class="lanes" id="lanes"></div>
+    </div>
+    <div class="panel build">
+      <header><h3>Build output</h3><span class="count" id="buildCount">0 artifacts</span></header>
+      <div class="readiness">
+        <div class="row"><span>Release readiness</span><span class="mono" id="readyPct">0%</span></div>
+        <div class="track"><i id="readyBar"></i></div>
+      </div>
+      <ul class="files" id="files">
+        <li class="empty">Nothing committed yet.<span class="mono">Artifacts appear as agents finish tasks</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <div id="releaseSlot"></div>
+
+  <footer class="foot">
+    <span>Cassini · deterministic swarm simulation · 7 agents · 3 missions</span>
+    <span id="clock">T+00:00</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ════════════════════════════════════════════════════════════════
+   1 · AGENTS
+   ════════════════════════════════════════════════════════════════ */
+const AGENTS = [
+  { id:"atlas", name:"ATLAS", role:"Orchestrator",      hue:38,
+    bio:"Holds the mission graph. Decomposes the objective, assigns work as dependencies clear, arbitrates blockers, and signs the release." },
+  { id:"vera",  name:"VERA",  role:"Requirements",      hue:188,
+    bio:"Turns a one-line mission into measurable constraints: scope, service levels, acceptance criteria, and the rules nobody is allowed to break." },
+  { id:"koda",  name:"KODA",  role:"Architect",         hue:262,
+    bio:"Designs topology, data contracts and failure modes before a line is written. Every interface NOVA implements starts on KODA's board." },
+  { id:"nova",  name:"NOVA",  role:"Implementation",    hue:152,
+    bio:"Writes the services, pipelines and models. Carries the heaviest task load and absorbs every rework cycle SABLE sends back." },
+  { id:"sable", name:"SABLE", role:"Adversarial review",hue:348,
+    bio:"Tries to break what NOVA ships. Replays hostile traffic, audits blast radius and privacy, and rejects anything that fails the bar." },
+  { id:"orion", name:"ORION", role:"Release",           hue:212,
+    bio:"Containers, CI, canaries and rollback guards. Nothing reaches a production surface without passing through ORION's gate." },
+  { id:"lyra",  name:"LYRA",  role:"Documentation",     hue:88,
+    bio:"Runbooks, model cards and API references. Makes the system operable by a human at 3am who has never seen the code." },
+];
+const A = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+const RING = ["vera","koda","nova","sable","orion","lyra"];
+
+/* ════════════════════════════════════════════════════════════════
+   2 · MISSIONS — task graphs with real dependencies and rework loops
+   ════════════════════════════════════════════════════════════════ */
+const MISSIONS = {
+
+/* ───────────────────────── SENTRY ───────────────────────── */
+sentry:{
+  code:"SENTRY-01", title:"Real-time fraud scoring service",
+  brief:"Stand up a streaming service that scores card-not-present transactions in under 40 ms, holds a regulated audit trail, and survives an adversarial review before it touches live money.",
+  version:"v1.0.0",
+  tasks:[
+  {id:"T01",a:"vera",c:5,t:"Fraud taxonomy & regulatory constraints",d:[],
+   out:[{f:"docs/requirements.md",k:"spec",l:214,s:"## Hard constraints\n<b>C-01</b>  p99 scoring latency ≤ 40 ms end to end\n<b>C-02</b>  every decision reproducible for 7 years (audit)\n<b>C-03</b>  no raw PAN leaves the tokenisation boundary\n<b>C-04</b>  reviewer override must be possible within 1 s"}],
+   talk:[{at:.35,to:"atlas",ty:"QUERY",x:"Three constraint families in scope — latency, auditability, PII. Do we treat the 7-year audit trail as in-scope for v1?"},
+         {at:.55,to:"vera",ty:"ASSIGN",from:"atlas",x:"In scope. It changes KODA's storage topology, so lock it before architecture starts."},
+         {at:.9,to:"koda",ty:"HANDOFF",x:"Constraints frozen: <code>C-01..C-04</code>. The 40 ms budget is end to end, not model-only — plan accordingly."}]},
+
+  {id:"T02",a:"vera",c:4,t:"Success metrics & service levels",d:["T01"],
+   out:[{f:"docs/slo-spec.md",k:"spec",l:96,s:"recall@0.1%fpr   ≥ 0.72   # blocks real fraud\nprecision@block  ≥ 0.88   # protects good customers\nlatency_p99_ms   ≤ 40\navailability     99.95%\n<b>error_budget</b>     21.6 min / month"}],
+   talk:[{at:.4,to:"sable",ty:"BROADCAST",x:"Publishing the acceptance bar now so you can write the adversarial suite against it, not against my prose."},
+         {at:.85,to:"koda",ty:"HANDOFF",x:"SLOs signed. <code>recall@0.1%fpr ≥ 0.72</code> is the number the whole thing lives or dies by."}]},
+
+  {id:"T03",a:"koda",c:7,t:"System architecture & data flow",d:["T01","T02"],
+   out:[{f:"docs/architecture.md",k:"design",l:340,s:"gateway → tokeniser → <b>kafka:txn.raw</b> (6 partitions)\n   └→ feature-resolver (redis, 8 ms budget)\n        └→ scorer (gbdt, onnx runtime)\n             └→ decision-log (append-only, s3 + glacier)\nfallback: stale-feature path returns rules-only score"}],
+   talk:[{at:.3,to:"vera",ty:"QUERY",x:"The 40 ms budget forces a cache-resident feature store. Confirm a 90-second staleness tolerance is acceptable under C-01?"},
+         {at:.5,to:"koda",ty:"APPROVE",from:"vera",x:"Acceptable up to 90 s for behavioural features. Identity features must be fresh — no exceptions."},
+         {at:.95,to:"nova",ty:"HANDOFF",x:"Topology is on the board. Ingest and scorer are separate processes; do not couple them."}]},
+
+  {id:"T04",a:"koda",c:4,t:"Feature store schema & contracts",d:["T03"],
+   out:[{f:"store/feature_store.sql",k:"schema",l:128,s:"CREATE TABLE entity_features (\n  entity_id   TEXT    NOT NULL,\n  feature_set TEXT    NOT NULL,\n  vec         REAL[]  NOT NULL,\n  <b>computed_at</b> TIMESTAMPTZ NOT NULL,\n  PRIMARY KEY (entity_id, feature_set)\n);"}],
+   talk:[{at:.6,to:"nova",ty:"HANDOFF",x:"Schema pinned. <code>computed_at</code> is mandatory on every row — the staleness guard reads it, not wall clock."}]},
+
+  {id:"T05",a:"nova",c:8,t:"Streaming ingest service",d:["T03"],
+   out:[{f:"ingest/stream_consumer.py",k:"service",l:412,s:"async def consume(topic: str) -> None:\n    async for batch in reader.batches(max_records=500):\n        rows = [tokenise(r) for r in batch]\n        await resolver.enrich(rows)\n        await scorer.submit(rows)\n        await reader.commit()   # at-least-once"}],
+   talk:[{at:.25,to:"koda",ty:"QUERY",x:"Six partitions against four consumer instances leaves two idle on rebalance. Intentional headroom or should I scale to six?"},
+         {at:.45,to:"nova",ty:"APPROVE",from:"koda",x:"Headroom is intentional — peak season doubles volume. Keep four, size the pool for six."},
+         {at:.92,to:"sable",ty:"REVIEW",x:"Consumer is up, 11.4k txn/s on replay. Ready for you to break it."}]},
+
+  {id:"T06",a:"nova",c:7,t:"Feature engineering pipeline",d:["T04"],
+   out:[{f:"features/transforms.py",k:"pipeline",l:386,s:"VELOCITY = Window(\"1h\",\"24h\",\"7d\")\n\ndef build(entity: Entity) -> Vector:\n    v = velocity_counts(entity, VELOCITY)\n    v |= geo_distance_from_home(entity)\n    v |= device_entropy(entity)\n    return assert_fresh(v, <b>max_age_s=90</b>)"}],
+   talk:[{at:.5,to:"vera",ty:"QUERY",x:"Device entropy needs 30 days of history. New accounts will score on a sparse vector — acceptable or do we need a cold-start rule?"},
+         {at:.7,to:"nova",ty:"HANDOFF",from:"vera",x:"Cold start needs a rules-only path. Add it as a named branch so the audit log can show which path decided."}]},
+
+  {id:"T07",a:"nova",c:9,t:"Model training harness",d:["T06"],
+   out:[{f:"model/train_gbdt.py",k:"model",l:298,s:"params = dict(objective=\"binary\", num_leaves=96,\n              learning_rate=.043, <b>scale_pos_weight</b>=41.7)\n# temporal split — never random, leakage kills this model\ntrain, valid = split_by_time(df, cutoff=\"2026-07-01\")\nbooster = lgb.train(params, train, valid_sets=[valid])"},
+        {f:"model/calibrate.py",k:"model",l:112,s:"iso = IsotonicRegression(out_of_bounds=\"clip\")\niso.fit(raw_scores_valid, y_valid)\n# a 0.80 score must mean 80% of those are fraud\nassert <b>brier_score</b>(iso.predict(raw), y) < 0.042"}],
+   talk:[{at:.3,to:"atlas",ty:"QUERY",x:"Class imbalance is 1:41. I'm weighting rather than resampling so the calibration stays honest."},
+         {at:.6,to:"nova",ty:"APPROVE",from:"atlas",x:"Agreed. SABLE will test calibration directly, so don't let resampling flatter the curve."},
+         {at:.95,to:"sable",ty:"REVIEW",x:"Holdout: recall 0.761 @ 0.1% FPR, Brier 0.038. Over the bar. Model card inputs attached."}]},
+
+  {id:"T08",a:"sable",c:6,t:"Adversarial review — ingest & features",d:["T05","T06"],
+   defect:{owner:"nova",
+     find:"Killed the feature resolver mid-stream. The consumer kept committing offsets while enrichment silently returned empty vectors — <code>14,200 transactions scored on null features</code> and logged as legitimate decisions.",
+     why:"No backpressure, no dead-letter path. A degraded dependency becomes a silent fraud hole."},
+   out:[{f:"eval/ingest_audit.md",k:"report",l:184,s:"FINDING-01  severity: <b>critical</b>\n  trigger   resolver timeout > 8 ms sustained\n  observed  14,200 scores on empty vectors, zero alarms\n  required  backpressure + DLQ + fail-closed decision"}],
+   talk:[{at:.3,to:"nova",ty:"QUERY",x:"Running a dependency-kill drill against your consumer. Holding offsets."},
+         {at:.95,to:"atlas",ty:"BROADCAST",x:"FINDING-01 raised, critical. Blocking the release gate until it is closed."}]},
+
+  {id:"T09",a:"nova",c:6,t:"Rework — backpressure, DLQ, fail-closed",d:["T08"],rework:true,
+   out:[{f:"ingest/stream_consumer.py",k:"service",l:498,v2:true,s:"if resolver.p99_ms() > <b>SLA_MS</b>:\n    await reader.pause()                 # stop the firehose\n    metrics.incr(\"ingest.backpressure\")\nif row.features.is_empty():\n    await dlq.put(row, reason=\"features_unresolved\")\n    return Decision.REVIEW   # fail closed, never silent-allow"}],
+   talk:[{at:.4,to:"koda",ty:"QUERY",x:"Fail-closed sends unresolvable rows to manual review. That loads the review queue during an outage — acceptable?"},
+         {at:.6,to:"nova",ty:"APPROVE",from:"koda",x:"Correct trade. A full review queue is an operations problem; a silent allow is a fraud loss."},
+         {at:.9,to:"sable",ty:"REVIEW",x:"Patched. Re-run the kill drill — consumer now pauses at 8 ms and drains to DLQ."},
+         {at:.99,to:"nova",ty:"APPROVE",from:"sable",x:"Re-drilled three times. Zero silent scores, 100% of degraded rows reach the DLQ. FINDING-01 closed."}]},
+
+  {id:"T10",a:"nova",c:6,t:"Scoring API & decision log",d:["T07"],
+   out:[{f:"api/score_service.py",k:"service",l:276,s:"@app.post(\"/v1/score\")\nasync def score(req: ScoreRequest) -> ScoreResponse:\n    with budget(<b>40</b>, unit=\"ms\") as b:\n        feats = await resolver.get(req.entity_id)\n        p     = model.predict(feats)\n    await audit.append(req, p, b.elapsed_ms, model.sha)\n    return ScoreResponse(p=p, action=policy.decide(p))"}],
+   talk:[{at:.55,to:"lyra",ty:"HANDOFF",x:"Endpoint contract is stable: <code>POST /v1/score</code>, returns probability plus action. Safe to document."}]},
+
+  {id:"T11",a:"sable",c:7,t:"Privacy & drift audit",d:["T07","T10"],
+   defect:{owner:"nova",
+     find:"Debug logging on the scoring path writes the full feature vector at <code>INFO</code>. The vector includes a hashed-but-reversible home-geo bucket, so the decision log reconstructs customer home locations.",
+     why:"Violates C-03. A log retained for 7 years becomes a 7-year location dataset."},
+   out:[{f:"eval/adversarial_report.md",k:"report",l:260,s:"FINDING-02  severity: <b>high</b>  (constraint C-03)\n  leak      home_geo_bucket recoverable from INFO logs\n  drift     PSI 0.11 on device_entropy — watch, not block\n  attack    gradient-probing at 60 rpm did not recover thresholds"}],
+   talk:[{at:.35,to:"nova",ty:"QUERY",x:"Probing your threshold at 60 requests a minute to see if it is recoverable from responses."},
+         {at:.6,to:"sable",ty:"BROADCAST",from:"nova",x:"Thresholds are server-side only and the response is bucketed. Should hold."},
+         {at:.95,to:"atlas",ty:"BROADCAST",x:"Thresholds held. But FINDING-02 — we are logging recoverable location data. C-03 violation."}]},
+
+  {id:"T12",a:"nova",c:5,t:"Rework — redact inference logs",d:["T11"],rework:true,
+   out:[{f:"api/redaction.py",k:"service",l:144,v2:true,s:"REDACT = {\"home_geo_bucket\",\"device_fingerprint\",\"pan_token\"}\n\ndef safe_record(v: Vector) -> dict:\n    # audit needs the decision, not the person\n    return {k: (\"<b>⟨redacted⟩</b>\" if k in REDACT else v[k]) for k in v}"}],
+   talk:[{at:.5,to:"vera",ty:"QUERY",x:"Redacting four fields from the audit record. Does that still satisfy C-02 reproducibility?"},
+         {at:.7,to:"nova",ty:"APPROVE",from:"vera",x:"Yes — store the feature-vector hash alongside. Reproducible without being re-identifiable."},
+         {at:.99,to:"nova",ty:"APPROVE",from:"sable",x:"Re-ran the recovery attack on 50k redacted records. Nothing recoverable. FINDING-02 closed."}]},
+
+  {id:"T13",a:"orion",c:6,t:"CI pipeline & container build",d:["T10"],
+   out:[{f:"Dockerfile",k:"infra",l:42,s:"FROM python:3.12-slim AS runtime\nCOPY --from=build /opt/venv /opt/venv\nUSER 10001:10001          # never root on the money path\n<b>HEALTHCHECK</b> CMD curl -fsS localhost:8080/healthz || exit 1"},
+        {f:".ci/pipeline.yaml",k:"infra",l:118,s:"stages: [lint, unit, replay, adversarial, sign]\nreplay:\n  dataset: <b>prod-shadow-7d</b>\n  gate: recall@0.1fpr >= 0.72 AND p99_ms <= 40\nsign:\n  requires: [adversarial]   # SABLE's suite is a merge gate"}],
+   talk:[{at:.45,to:"sable",ty:"QUERY",x:"Wiring your adversarial suite as a hard merge gate. Confirm it is deterministic enough to block a build?"},
+         {at:.65,to:"orion",ty:"APPROVE",from:"sable",x:"Seeded and deterministic. If it fails, the build deserves to fail."}]},
+
+  {id:"T14",a:"orion",c:6,t:"Canary rollout & rollback guard",d:["T13","T09","T12"],
+   out:[{f:"deploy/canary.yaml",k:"infra",l:96,s:"steps: [1%, 5%, 25%, 100%]\nhold_minutes: 20\nabort_if:\n  - p99_latency_ms > 40 for 3m\n  - <b>block_rate</b> deviates > 1.8σ from baseline\n  - decision_log write failures > 0"}],
+   talk:[{at:.4,to:"atlas",ty:"QUERY",x:"Abort triggers wired on latency, block-rate deviation and log-write failure. Want a human gate between 25% and 100%?"},
+         {at:.6,to:"orion",ty:"APPROVE",from:"atlas",x:"Yes. Full fleet needs a named approver — this one moves money."},
+         {at:.95,to:"lyra",ty:"HANDOFF",x:"Rollout shape is final. Runbook needs the abort criteria verbatim."}]},
+
+  {id:"T15",a:"lyra",c:5,t:"On-call runbook",d:["T14"],
+   out:[{f:"RUNBOOK.md",k:"docs",l:228,s:"### Alarm: ingest.backpressure sustained > 5m\n1. Check resolver p99 — <code>redis-cli --latency</code>\n2. Confirm DLQ is draining, not growing unbounded\n3. Do <b>not</b> disable fail-closed to drain the queue\n4. Page the owner before 10m — review queue saturates at ~14m"}],
+   talk:[{at:.5,to:"sable",ty:"QUERY",x:"Documenting both findings as permanent runbook alarms so the fix can't quietly regress."},
+         {at:.8,to:"lyra",ty:"APPROVE",from:"sable",x:"That's the right instinct. A closed finding with no alarm reopens itself in six months."}]},
+
+  {id:"T16",a:"lyra",c:5,t:"Model card & API reference",d:["T11","T10"],
+   out:[{f:"MODEL_CARD.md",k:"docs",l:196,s:"Intended use   card-not-present authorisation, BD + SEA corridors\nNot for        account takeover, AML, credit decisioning\nKnown gaps     sparse vectors < 30d history → rules-only branch\n<b>Review</b>         quarterly, or on PSI > 0.2 for any feature"},
+        {f:"docs/API.md",k:"docs",l:154,s:"POST /v1/score\n  → 200 {p: 0.0-1.0, action: allow|review|block, model_sha}\n  → 503 {action: \"review\"}   # fail-closed, by design\nLatency contract: <b>p99 ≤ 40ms</b>, measured at the gateway"}],
+   talk:[{at:.6,to:"atlas",ty:"HANDOFF",x:"Model card names the gaps rather than hiding them — the cold-start branch and the quarterly drift review are both in writing."}]},
+
+  {id:"T17",a:"atlas",c:5,t:"Integration review & release sign-off",d:["T14","T15","T16"],
+   out:[{f:"RELEASE-v1.0.0.md",k:"release",l:86,s:"GATE  requirements     ✓ C-01..C-04 all evidenced\nGATE  adversarial      ✓ 2 findings raised, 2 closed, 0 open\nGATE  slo replay       ✓ recall 0.761 · p99 36.2ms\nGATE  rollback         ✓ canary abort drilled twice\n<b>SIGNED</b>  ATLAS — v1.0.0 cleared for 1% canary"}],
+   talk:[{at:.3,to:"sable",ty:"QUERY",x:"Final call before I sign. Any finding you are not comfortable closing?"},
+         {at:.5,to:"atlas",ty:"APPROVE",from:"sable",x:"Both closed with re-tests and permanent alarms. Nothing open from my side."},
+         {at:.75,to:"orion",ty:"QUERY",x:"Rollback drilled?"},
+         {at:.85,to:"atlas",ty:"APPROVE",from:"orion",x:"Twice, from 25% back to zero in 94 seconds. Clean."},
+         {at:.97,to:"all",ty:"SHIP",x:"All gates green. <code>v1.0.0</code> signed and cleared for canary. Good work — two critical holes caught before a customer ever saw them."}]},
+]},
+
+/* ───────────────────────── AEGIS ───────────────────────── */
+aegis:{
+  code:"AEGIS-02", title:"Autonomous NOC incident response",
+  brief:"Let a swarm triage, correlate and remediate network incidents without a human in the loop for routine faults — while making it structurally impossible to take down a core router by accident.",
+  version:"v0.9.0",
+  tasks:[
+  {id:"N01",a:"vera",c:5,t:"Incident taxonomy from 18 months of tickets",d:[],
+   out:[{f:"docs/incident_taxonomy.md",k:"spec",l:242,s:"CLASS-A  link flap           61% of volume, 0 human judgement\nCLASS-B  optical degradation   18%, threshold-driven\nCLASS-C  config drift           9%, needs approval\n<b>CLASS-D</b>  core instability       4%, <b>never autonomous</b>"}],
+   talk:[{at:.4,to:"atlas",ty:"BROADCAST",x:"79% of 18 months of tickets are Class A and B — mechanical, repetitive, and the reason on-call burns out."},
+         {at:.85,to:"koda",ty:"HANDOFF",x:"Taxonomy locked. Class D is the one that matters: it must be unreachable by any autonomous path."}]},
+
+  {id:"N02",a:"vera",c:4,t:"Escalation policy & blast-radius limits",d:["N01"],
+   out:[{f:"policy/escalation.yaml",k:"spec",l:134,s:"blast_radius:\n  max_devices_per_action: 1\n  max_actions_per_hour: 6\n  <b>forbidden</b>: [core-*, bgp-reset, firmware-*]\nquorum_required: [CLASS-C, CLASS-D]"}],
+   talk:[{at:.5,to:"sable",ty:"BROADCAST",x:"Blast-radius caps published. Treat every one of them as something to attack, not a guideline."}]},
+
+  {id:"N03",a:"koda",c:7,t:"Event bus & incident state machine",d:["N01"],
+   out:[{f:"docs/architecture.md",k:"design",l:318,s:"states: detected → correlated → classified →\n        (auto: planned → dry_run → executed → verified)\n        (manual: queued → approved → executed → verified)\nany state --[timeout 15m]--> <b>escalated_to_human</b>"}],
+   talk:[{at:.35,to:"vera",ty:"QUERY",x:"Every state has a 15-minute timeout to human escalation. Does that satisfy your policy's duty-of-care clause?"},
+         {at:.55,to:"koda",ty:"APPROVE",from:"vera",x:"It does. Nothing should ever sit in an automated state indefinitely."},
+         {at:.92,to:"nova",ty:"HANDOFF",x:"State machine is final. <code>dry_run</code> is not optional — every autonomous action passes through it."}]},
+
+  {id:"N04",a:"koda",c:4,t:"Device adapter contract",d:["N03"],
+   out:[{f:"adapters/contract.py",k:"schema",l:118,s:"class Adapter(Protocol):\n    def observe(self) -> Telemetry: ...\n    def plan(self, i: Incident) -> Plan: ...\n    def dry_run(self, p: Plan) -> Diff: ...   # <b>mandatory</b>\n    def apply(self, p: Plan, token: QuorumToken) -> Result: ..."}],
+   talk:[{at:.6,to:"nova",ty:"HANDOFF",x:"<code>apply()</code> will not compile without a QuorumToken. The type system is the first line of defence."}]},
+
+  {id:"N05",a:"nova",c:7,t:"MikroTik & SNMP collector adapters",d:["N04"],
+   out:[{f:"adapters/mikrotik.py",k:"service",l:364,s:"async def observe(self) -> Telemetry:\n    async with ssh(self.host, port=<b>3535</b>, timeout=6) as c:\n        rx = await c.run(\"/interface monitor-traffic once\")\n        st = await c.run(\"/interface print status\")\n    return parse(rx, st, collected_at=now())"}],
+   talk:[{at:.4,to:"koda",ty:"QUERY",x:"Some devices answer SSH on 3535 and some on 22. Pin per-device in inventory, or probe both?"},
+         {at:.6,to:"nova",ty:"APPROVE",from:"koda",x:"Pin it. Probing doubles connection count across 400 devices and looks like a scan to the IDS."}]},
+
+  {id:"N06",a:"nova",c:8,t:"Correlation engine",d:["N03"],
+   out:[{f:"engine/correlate.py",k:"pipeline",l:420,s:"# one upstream fault should be one incident, not 40 alarms\ndef correlate(events: list[Event]) -> list[Incident]:\n    g = topology_graph()\n    for cluster in cluster_by_time(events, window=\"90s\"):\n        root = <b>lowest_common_upstream</b>(g, cluster)\n        yield Incident(root=root, symptoms=cluster)"}],
+   talk:[{at:.3,to:"koda",ty:"QUERY",x:"Using lowest-common-upstream on the topology graph for root cause. Fails on dual-homed POPs — accept for v1?"},
+         {at:.5,to:"nova",ty:"HANDOFF",from:"koda",x:"Accept, but mark dual-homed incidents low-confidence so they route to a human instead of the runner."},
+         {at:.95,to:"sable",ty:"REVIEW",x:"Replayed 18 months of events: 2,847 raw alarms collapse to 193 incidents. Ready for your harness."}]},
+
+  {id:"N07",a:"nova",c:7,t:"Remediation playbook runner",d:["N02","N06"],
+   out:[{f:"runner/playbooks.py",k:"service",l:352,s:"PLAYBOOKS = {\n  \"link_flap\":  [bounce_interface, wait(30), verify_rx],\n  \"optic_warn\": [lower_tx_power, wait(60), verify_ber],\n}\nplan = PLAYBOOKS[incident.klass]\ndiff = adapter.dry_run(plan)        # always, no flag to skip"}],
+   talk:[{at:.5,to:"sable",ty:"REVIEW",x:"Runner is live in dry-run against staging. Attack it before it gets anywhere near a real device."}]},
+
+  {id:"N08",a:"sable",c:7,t:"Safety review — autonomous actions",d:["N07"],
+   defect:{owner:"nova",
+     find:"Crafted a synthetic incident where a Class-A link flap on an access port correlated upward to a <code>core-dhk-01</code> uplink. The runner planned <code>bounce_interface</code> on a core router and the dry-run diff passed — <b>no quorum was requested</b> because classification happened before root-cause promotion.",
+     why:"The forbidden-device list was checked against the symptom device, not the device the plan would actually touch."},
+   out:[{f:"eval/safety_audit.md",k:"report",l:206,s:"FINDING-01  severity: <b>critical</b>\n  path      access flap → LCU promotes root to core-dhk-01\n  planned   bounce_interface on a CLASS-D device\n  gap       forbidden list checked on symptom, not <b>target</b>\n  impact    single synthetic alarm could drop a POP"}],
+   talk:[{at:.3,to:"nova",ty:"QUERY",x:"Injecting a synthetic flap that correlates upward. Watching what the runner decides to touch."},
+         {at:.95,to:"atlas",ty:"BROADCAST",x:"Stop the gate. One crafted alarm got the runner to plan an interface bounce on a core router with no quorum."}]},
+
+  {id:"N09",a:"nova",c:7,t:"Rework — target-side quorum & dry-run proof",d:["N08"],rework:true,
+   out:[{f:"runner/guards.py",k:"service",l:198,v2:true,s:"def authorise(plan: Plan) -> QuorumToken:\n    for dev in plan.<b>targets</b>():          # targets, not symptoms\n        if matches(dev, FORBIDDEN):\n            raise HardStop(f\"{dev} is CLASS-D\")\n        if klass(dev) in QUORUM_CLASSES:\n            return two_key.request(plan, ttl=300)\n    return QuorumToken.auto(plan)"}],
+   talk:[{at:.35,to:"koda",ty:"QUERY",x:"Moving the check to <code>plan.targets()</code> and making HardStop unrecoverable. No override flag at all?"},
+         {at:.55,to:"nova",ty:"APPROVE",from:"koda",x:"No override. If a human must touch a core router, they do it by hand with their own credentials."},
+         {at:.9,to:"sable",ty:"REVIEW",x:"Guard rewritten. Re-run your synthetic — the promotion path now hits HardStop before planning."},
+         {at:.99,to:"nova",ty:"APPROVE",from:"sable",x:"Ran 400 crafted promotion paths. Every core target hard-stopped. FINDING-01 closed."}]},
+
+  {id:"N10",a:"nova",c:5,t:"Alert dispatcher",d:["N06"],
+   out:[{f:"dispatch/notify.py",k:"service",l:212,s:"ROUTES = {\"CLASS-A\": \"noc-auto\", \"CLASS-D\": \"noc-core+page\"}\n\nasync def send(i: Incident) -> None:\n    if <b>suppressed</b>(i):            # dedupe before anything else\n        return\n    await channel(ROUTES[i.klass]).post(render(i))"}],
+   talk:[{at:.55,to:"sable",ty:"REVIEW",x:"Dispatcher routes by class. Worth replaying a flapping link through it before we trust it."}]},
+
+  {id:"N11",a:"sable",c:6,t:"False-positive harness on replayed traffic",d:["N06","N10"],
+   defect:{owner:"nova",
+     find:"Replayed a genuine 40-minute flapping link. Correlation opened a fresh incident on every up/down transition — <code>112 incidents, 112 dispatches</code> to the on-call channel in 40 minutes.",
+     why:"The 90-second clustering window closes between flaps. Dedupe runs per-incident, so it never sees them as the same fault."},
+   out:[{f:"eval/fp_harness.md",k:"report",l:178,s:"FINDING-02  severity: <b>high</b>\n  input     real flap, 112 transitions over 40m\n  observed  112 incidents → 112 pages\n  required  hysteresis on the entity, not the event\n  note      this is how teams learn to mute the channel"}],
+   talk:[{at:.4,to:"nova",ty:"QUERY",x:"Replaying a real flapping link from the archive rather than a synthetic one."},
+         {at:.95,to:"atlas",ty:"BROADCAST",x:"112 pages in 40 minutes from one bad optic. Technically correct, operationally useless."}]},
+
+  {id:"N12",a:"nova",c:6,t:"Rework — entity hysteresis & suppression",d:["N11"],rework:true,
+   out:[{f:"engine/hysteresis.py",k:"pipeline",l:164,v2:true,s:"# an entity that flaps is ONE incident with a transition count\nstate = EntityState(id=link_id)\nif state.transitions_in(\"15m\") >= 4:\n    state.mark(<b>UNSTABLE</b>)              # suppress, escalate once\n    return Incident.rollup(state, klass=\"CLASS-B\", page_once=True)"}],
+   talk:[{at:.5,to:"vera",ty:"QUERY",x:"Rolling repeated flaps into one UNSTABLE incident that pages once. Does one page meet the policy's notification duty?"},
+         {at:.7,to:"nova",ty:"APPROVE",from:"vera",x:"One page with a live transition count is better notice than 112. Policy satisfied."},
+         {at:.99,to:"nova",ty:"APPROVE",from:"sable",x:"Re-replayed the same 40 minutes: 1 incident, 1 page, transition count live. FINDING-02 closed."}]},
+
+  {id:"N13",a:"orion",c:6,t:"Staged rollout across three POPs",d:["N09","N12"],
+   out:[{f:"deploy/rollout.yaml",k:"infra",l:108,s:"stage_1: {pop: dhk-edge-3, mode: <b>observe_only</b>, days: 7}\nstage_2: {pop: ctg-edge-1, mode: dry_run_only, days: 7}\nstage_3: {pop: dhk-edge-1, mode: autonomous_class_a, days: 14}\nhalt_if: unplanned_outage_attributable == true"}],
+   talk:[{at:.4,to:"atlas",ty:"QUERY",x:"Four weeks of observe-then-dry-run before anything acts autonomously. Too conservative?"},
+         {at:.6,to:"orion",ty:"APPROVE",from:"atlas",x:"Not for something with hands on production network gear. Keep it."}]},
+
+  {id:"N14",a:"lyra",c:5,t:"NOC runbook & escalation card",d:["N13"],
+   out:[{f:"RUNBOOK.md",k:"docs",l:246,s:"### If the swarm hard-stops on a CLASS-D target\nThis is the guard working, <b>not</b> a bug.\n1. Read the plan it refused — <code>aegis plan show &lt;id&gt;</code>\n2. Act by hand with your own credentials\n3. Never add the device to an allow-list to unblock yourself"},
+        {f:"docs/escalation_card.md",k:"docs",l:88,s:"CLASS-A  autonomous, no page unless verify fails twice\nCLASS-B  rolled up, <b>one</b> page per unstable entity\nCLASS-C  queued for two-key approval, 15m then human\nCLASS-D  never autonomous — page core on-call immediately"}],
+   talk:[{at:.6,to:"sable",ty:"HANDOFF",x:"Wrote the hard-stop section so nobody 'fixes' the guard at 3am by allow-listing a core router."}]},
+
+  {id:"N15",a:"atlas",c:5,t:"Safety review & conditional sign-off",d:["N13","N14"],
+   out:[{f:"RELEASE-v0.9.0.md",k:"release",l:92,s:"GATE  taxonomy coverage  ✓ 79% of volume eligible\nGATE  safety review      ✓ 2 critical/high raised, 2 closed\nGATE  false positives    ✓ 112 → 1 on the archive replay\nSCOPE <b>CLASS-A only</b> in autonomous mode — B/C/D stay gated\n<b>SIGNED</b>  ATLAS — v0.9.0, observe-only for 7 days"}],
+   talk:[{at:.35,to:"sable",ty:"QUERY",x:"Signing conditionally. Autonomous mode for Class A only. Does that leave anything you found still reachable?"},
+         {at:.55,to:"atlas",ty:"APPROVE",from:"sable",x:"Nothing reachable. The promotion path is hard-stopped and the flap storm is rolled up."},
+         {at:.97,to:"all",ty:"SHIP",x:"<code>v0.9.0</code> signed, scoped to Class A, starting observe-only. We shipped something that refuses to touch a core router — that refusal is the feature."}]},
+]},
+
+/* ───────────────────────── LUMEN ───────────────────────── */
+lumen:{
+  code:"LUMEN-03", title:"Multilingual document intelligence pipeline",
+  brief:"Extract structured fields from scanned utility bills and government forms in Bangla and English, at a confidence level honest enough that a human reviewer only sees what genuinely needs a human.",
+  version:"v1.2.0",
+  tasks:[
+  {id:"L01",a:"vera",c:5,t:"Language coverage & accuracy targets",d:[],
+   out:[{f:"docs/scope.md",k:"spec",l:186,s:"languages   bn (primary), en, mixed bn-en in one page\ntargets     field F1 ≥ 0.94 en · ≥ <b>0.90</b> bn\nretention   source scan deleted ≤ 24h after extraction\nreview      anything below confidence 0.85 goes to a human"}],
+   talk:[{at:.4,to:"atlas",ty:"QUERY",x:"Setting the Bangla bar at 0.90 rather than matching English at 0.94. Honest, or are we conceding too early?"},
+         {at:.6,to:"vera",ty:"APPROVE",from:"atlas",x:"Honest. Bangla conjuncts are genuinely harder. Publish the gap rather than hiding it in an average."},
+         {at:.9,to:"koda",ty:"HANDOFF",x:"Targets set per language, never averaged. An averaged number would hide a broken Bangla path."}]},
+
+  {id:"L02",a:"koda",c:6,t:"OCR → layout → extraction pipeline design",d:["L01"],
+   out:[{f:"docs/architecture.md",k:"design",l:296,s:"scan → deskew → <b>script_detect</b> → ocr(per-region) →\n       layout_parse → entity_extract → calibrate →\n       (conf ≥ .85 ? emit : review_queue)\nevery stage emits its own confidence; they multiply, never average"}],
+   talk:[{at:.4,to:"nova",ty:"HANDOFF",x:"Script detection runs per-region, not per-page. A bill with an English header and Bangla body is the normal case here."}]},
+
+  {id:"L03",a:"koda",c:4,t:"Extracted entity schema",d:["L02"],
+   out:[{f:"schema/entities.json",k:"schema",l:142,s:"{\"bill\": {\n  \"account_no\":  {\"type\":\"string\", \"script\":\"any\"},\n  \"amount_due\":  {\"type\":\"decimal\", \"<b>numerals</b>\":[\"latin\",\"bengali\"]},\n  \"due_date\":    {\"type\":\"date\", \"calendars\":[\"gregorian\",\"bangla\"]}\n}}"}],
+   talk:[{at:.6,to:"nova",ty:"HANDOFF",x:"Bengali numerals ০-৯ are first-class in the schema. Do not normalise them at parse time — store what was on the page."}]},
+
+  {id:"L04",a:"nova",c:7,t:"OCR engine & script detection",d:["L02"],
+   out:[{f:"ocr/detect.py",k:"pipeline",l:328,s:"def detect_script(region: Image) -> Script:\n    # unicode block histogram beats a CNN here and costs 2ms\n    hist = codepoint_blocks(quick_ocr(region))\n    return Script.BENGALI if hist[<b>\"0980-09FF\"</b>] > .35 else Script.LATIN"}],
+   talk:[{at:.5,to:"koda",ty:"QUERY",x:"A codepoint histogram beats the CNN on our sample and runs in 2 ms. Fine to keep it this simple?"},
+         {at:.7,to:"nova",ty:"APPROVE",from:"koda",x:"Keep it. Simple and measurable beats clever and opaque on a path this hot."}]},
+
+  {id:"L05",a:"nova",c:6,t:"Layout parser",d:["L02"],
+   out:[{f:"layout/parse.py",k:"pipeline",l:286,s:"blocks = segment(page, min_gap_px=14)\ntables = [b for b in blocks if <b>ruling_density</b>(b) > .4]\n# key-value pairs in bills are column-aligned, not adjacent\npairs  = align_columns(blocks, tolerance_px=9)"}],
+   talk:[{at:.55,to:"nova",ty:"HANDOFF",x:"Column alignment, not nearest-neighbour. Bill layouts put the label far left and the value far right."}]},
+
+  {id:"L06",a:"nova",c:9,t:"Entity extraction model",d:["L03","L05"],
+   out:[{f:"extract/model.py",k:"model",l:374,s:"enc = XLMRobertaModel.from_pretrained(\"xlm-roberta-base\")\nhead = SpanHead(n_fields=len(SCHEMA), dropout=.12)\n# layout coords are fed as positional features, not ignored\nloss = span_loss(logits, spans) + <b>.3</b> * layout_consistency(spans)"}],
+   talk:[{at:.3,to:"koda",ty:"QUERY",x:"Feeding layout coordinates as positional features rather than running text-only. Costs 18% latency, buys 6 F1 points."},
+         {at:.5,to:"nova",ty:"APPROVE",from:"koda",x:"Worth it. This is batch work — latency is not the binding constraint here."},
+         {at:.95,to:"sable",ty:"REVIEW",x:"Holdout: en F1 0.951, bn F1 0.918. Both over the bar. Audit it."}]},
+
+  {id:"L07",a:"sable",c:7,t:"Accuracy audit — Bangla & English set",d:["L06"],
+   defect:{owner:"nova",
+     find:"The 0.918 Bangla F1 hides a split. Stratifying by glyph complexity: simple forms score 0.961, pages with conjunct clusters (ক্ষ, জ্ঞ, ন্ত্র) score <code>0.743</code>. The tokeniser splits conjuncts mid-grapheme, so span boundaries land inside a single visual character.",
+     why:"A headline average passed the gate while the hardest third of real documents failed badly."},
+   out:[{f:"eval/accuracy_audit.md",k:"report",l:234,s:"FINDING-01  severity: <b>high</b>\n  headline  bn F1 0.918 — passes\n  simple    0.961 ✓\n  conjunct  <b>0.743</b> ✗   (31% of real corpus)\n  cause     tokeniser splits grapheme clusters mid-character"}],
+   talk:[{at:.3,to:"nova",ty:"QUERY",x:"Not taking the headline number. Stratifying the Bangla set by glyph complexity."},
+         {at:.95,to:"atlas",ty:"BROADCAST",x:"The average passed and the hard third failed. bn F1 drops to 0.743 on conjuncts — that is a third of real documents."}]},
+
+  {id:"L08",a:"nova",c:7,t:"Rework — grapheme-aware tokenisation",d:["L07"],rework:true,
+   out:[{f:"extract/graphemes.py",k:"pipeline",l:188,v2:true,s:"# ক্ষ is ONE character to a reader and must be one to the model\nclusters = regex.findall(r\"\\X\", text)        # unicode grapheme\nspans    = snap_to_clusters(raw_spans, clusters)\nassert all(s.start in <b>cluster_starts</b> for s in spans)"}],
+   talk:[{at:.4,to:"koda",ty:"QUERY",x:"Snapping every span boundary to grapheme-cluster edges. Adds a pass but makes mid-character splits impossible."},
+         {at:.6,to:"nova",ty:"APPROVE",from:"koda",x:"Make it an assertion, not a best effort. If a span lands mid-cluster the pipeline should refuse to emit."},
+         {at:.99,to:"nova",ty:"APPROVE",from:"sable",x:"Re-audited stratified: conjunct F1 0.743 → 0.907, simple holds at 0.958. FINDING-01 closed."}]},
+
+  {id:"L09",a:"nova",c:6,t:"Confidence calibration & review queue",d:["L06"],
+   out:[{f:"review/queue.py",k:"service",l:244,s:"conf = reduce(mul, [s.confidence for s in stages])  # multiply\nif conf < <b>0.85</b>:\n    queue.push(doc, fields_flagged=low_conf_fields(doc))\n# a reviewer sees only the fields in doubt, not the whole page"}],
+   talk:[{at:.5,to:"vera",ty:"QUERY",x:"Multiplying stage confidences makes the queue bigger but the number truthful. Prefer that to an average?"},
+         {at:.7,to:"nova",ty:"APPROVE",from:"vera",x:"Always. An inflated confidence means a wrong amount gets paid without anyone looking."}]},
+
+  {id:"L10",a:"sable",c:6,t:"Privacy review on retained scans",d:["L09"],
+   defect:{owner:"nova",
+     find:"The 24-hour deletion job removes the primary object but the review queue holds its own copy of every flagged page for reviewer context. Oldest surviving scan found: <code>63 days</code>, with national ID numbers legible.",
+     why:"Retention was implemented on the pipeline, not on every place a scan comes to rest."},
+   out:[{f:"eval/privacy_audit.md",k:"report",l:196,s:"FINDING-02  severity: <b>critical</b>\n  policy    delete source scan ≤ 24h\n  actual    review-queue copies survive indefinitely\n  oldest    <b>63 days</b>, NID numbers legible\n  required  TTL on every store + field-level encryption at rest"}],
+   talk:[{at:.35,to:"nova",ty:"QUERY",x:"Checking whether the 24-hour deletion covers every copy or just the one you wrote the job against."},
+         {at:.95,to:"atlas",ty:"BROADCAST",x:"63-day-old scans sitting in the review queue with readable NID numbers. Critical."}]},
+
+  {id:"L11",a:"nova",c:6,t:"Rework — TTL purge & field encryption",d:["L10"],rework:true,
+   out:[{f:"retention/purge.py",k:"service",l:206,v2:true,s:"STORES = [primary, review_queue, thumbnails, ocr_cache]\nfor s in STORES:                      # every resting place\n    s.set_ttl(hours=24, on_expiry=<b>shred</b>)\nSENSITIVE = {\"nid\",\"account_no\",\"address\"}\nencrypt_fields(SENSITIVE, key=kms.rotating(\"lumen-docs\"))"}],
+   talk:[{at:.4,to:"koda",ty:"QUERY",x:"Enumerating stores by hand is how this happened. Can retention be a property of the store type instead?"},
+         {at:.6,to:"nova",ty:"APPROVE",from:"koda",x:"Yes — make TTL a constructor argument with no default. A new store cannot exist without declaring one."},
+         {at:.99,to:"nova",ty:"APPROVE",from:"sable",x:"Swept all four stores plus the thumbnail cache. Nothing older than 24h, sensitive fields encrypted. FINDING-02 closed."}]},
+
+  {id:"L12",a:"orion",c:6,t:"Batch & streaming deploy targets",d:["L08","L11"],
+   out:[{f:"deploy/targets.yaml",k:"infra",l:124,s:"batch:   {schedule: \"0 2 * * *\", shard_by: upload_date}\nstream:  {trigger: object_created, concurrency: 24}\nguards:  [<b>ttl_declared</b>, grapheme_assert, conf_multiply]\n# a target that fails a guard will not start at all"}],
+   talk:[{at:.5,to:"sable",ty:"QUERY",x:"Both of your findings are now startup guards — the service refuses to boot without them. Enough?"},
+         {at:.7,to:"orion",ty:"APPROVE",from:"sable",x:"That is the strongest form of closed. A fix that can't be removed without breaking the build."}]},
+
+  {id:"L13",a:"lyra",c:5,t:"Integration guide & evaluation report",d:["L12"],
+   out:[{f:"docs/INTEGRATION.md",k:"docs",l:212,s:"POST /v1/extract  (multipart, ≤ 20 MB)\n  → 200 {fields, confidence, <b>review_required</b>}\n  → 202 {review_id}        # queued for a human\nYour scan is deleted within 24h. We keep fields, not images."},
+        {f:"docs/EVAL.md",k:"docs",l:178,s:"Reported per language AND per glyph complexity — never averaged.\n  en            F1 0.951\n  bn simple     F1 0.958\n  bn conjunct   F1 <b>0.907</b>   (was 0.743 pre-fix)\nKnown gap: handwritten amendments are out of scope."}],
+   talk:[{at:.6,to:"sable",ty:"HANDOFF",x:"Published the stratified numbers including the pre-fix figure. The gap is part of the record now."}]},
+
+  {id:"L14",a:"atlas",c:5,t:"Release review & sign-off",d:["L12","L13"],
+   out:[{f:"RELEASE-v1.2.0.md",k:"release",l:88,s:"GATE  accuracy (stratified) ✓ bn conjunct 0.907 ≥ 0.90\nGATE  privacy               ✓ TTL on 4 stores, fields encrypted\nGATE  honesty               ✓ no averaged metrics published\nGATE  guards as boot checks ✓ both fixes unremovable\n<b>SIGNED</b>  ATLAS — v1.2.0 released"}],
+   talk:[{at:.35,to:"vera",ty:"QUERY",x:"Final check: does the published eval still match the targets you set, per language and per complexity?"},
+         {at:.55,to:"atlas",ty:"APPROVE",from:"vera",x:"Matches exactly, and it shows the pre-fix number. That is the version I wanted."},
+         {at:.97,to:"all",ty:"SHIP",x:"<code>v1.2.0</code> signed. The honest metric caught what the average would have shipped — that is the whole point of having SABLE in the loop."}]},
+]},
+};
+
+/* ════════════════════════════════════════════════════════════════
+   3 · STATE
+   ════════════════════════════════════════════════════════════════ */
+const TYPE_COLOR = {
+  ASSIGN:"--accent", QUERY:"--accent-2", REVIEW:"--review",
+  REJECT:"--bad", APPROVE:"--ok", HANDOFF:"--ok",
+  BROADCAST:"--fg-dim", SHIP:"--accent", TOOL:"--warn", PLAN:"--accent",
+};
+
+let S = null;          // run state
+let speed = 2;
+let running = false;
+let mode = "sim";
+let focusAgent = null;
+let lastFrame = 0;
+
+function esc(s){
+  return String(s).replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
+}
+/* model text → safe HTML, keeping <code> and `backticks` as inline code */
+function fmtMsg(t){
+  return esc(t)
+    .replace(/&lt;code&gt;([\s\S]*?)&lt;\/code&gt;/g, '<code>$1</code>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+}
+
+function newState(missionId, runMode){
+  const m = MISSIONS[missionId];
+  const live = runMode === "live";
+  return {
+    missionId, m, mode: runMode || "sim",
+    t: 0,
+    tasks: live ? [] : m.tasks.map(t => ({ ...t, status:"queued", p:0, said:new Set() })),
+    agents: Object.fromEntries(AGENTS.map(a => [a.id, {
+      state:"idle", task:null, p:0, done:0, sent:0, recv:0, busyTime:0,
+    }])),
+    packets: [], msgs:[], files:[], findings:[], rework:0,
+    finished:false, seq:0,
+    live: { calls:0, tools:0, ms:0, chars:0, tier:"—", failed:0 },
+  };
+}
+
+/* ════════════════════════════════════════════════════════════════
+   4 · ENGINE
+   ════════════════════════════════════════════════════════════════ */
+function taskById(id){ return S.tasks.find(t => t.id === id); }
+
+function depsClear(t){
+  return t.d.every(d => { const x = taskById(d); return x && x.status === "done"; });
+}
+
+function emit(from, to, type, text){
+  const msg = { from, to, type, text, t:S.t, id:S.msgs.length };
+  S.msgs.push(msg);
+  if (S.agents[from]) S.agents[from].sent++;
+  if (S.agents[to])   S.agents[to].recv++;
+  if (to !== "all") S.packets.push({ from, to, type, k:0, life:1 });
+  else RING.concat(["atlas"]).filter(x => x !== from)
+        .forEach(x => S.packets.push({ from, to:x, type, k:0, life:1 }));
+  renderMsg(msg);
+  return msg;
+}
+
+function startTask(t){
+  t.status = "active";
+  t.p = 0;
+  const ag = S.agents[t.a];
+  ag.state = t.rework ? "blocked" : (t.a === "sable" ? "review" : "working");
+  ag.task = t;
+  if (t.a !== "atlas"){
+    emit("atlas", t.a, "ASSIGN",
+      t.rework ? `Rework assigned — <code>${t.id}</code> ${t.t}. Blocking the release gate until it closes.`
+               : `Dependencies clear. <code>${t.id}</code> ${t.t} is yours.`);
+  }
+}
+
+function finishTask(t){
+  t.status = "done";
+  t.p = 1;
+  const ag = S.agents[t.a];
+  ag.state = "idle"; ag.task = null; ag.p = 0; ag.done++;
+
+  (t.out || []).forEach(o => {
+    S.files.push({ ...o, by:t.a, at:S.t, id:S.files.length });
+  });
+
+  if (t.defect){
+    S.rework++;
+    S.findings.push({ task:t.id, ...t.defect });
+    emit(t.a, t.defect.owner, "REJECT", t.defect.find);
+    emit(t.a, "atlas", "BROADCAST", t.defect.why);
+  } else if (t.a !== "atlas"){
+    emit(t.a, "atlas", "HANDOFF",
+      `<code>${t.id}</code> complete${t.out && t.out.length ? ` — ${t.out.length} artifact${t.out.length>1?"s":""} committed.` : "."}`);
+  }
+  renderFiles();
+  if (S.tasks.every(x => x.status === "done")) finishMission();
+}
+
+function finishMission(){
+  if (S.finished) return;
+  S.finished = true; running = false;
+  Object.values(S.agents).forEach(a => { a.state = "idle"; a.task = null; a.p = 0; });
+  setRun(false);
+  el.stopBtn.hidden = true;
+  syncRoster();
+  renderRelease();
+}
+
+function tickPackets(dt){
+  for (const p of S.packets) p.k += dt * 0.62;
+  S.packets = S.packets.filter(p => p.k < 1.5);
+}
+
+function step(dt){
+  S.t += dt;
+
+  // dispatch
+  for (const t of S.tasks){
+    if (t.status === "queued" && depsClear(t) && S.agents[t.a].state === "idle"){
+      startTask(t);
+    }
+  }
+
+  // advance
+  for (const t of S.tasks){
+    if (t.status !== "active") continue;
+    const prev = t.p;
+    t.p = Math.min(1, t.p + dt / t.c);
+    S.agents[t.a].p = t.p;
+    S.agents[t.a].busyTime += dt;
+
+    for (const c of (t.talk || [])){
+      if (prev < c.at && t.p >= c.at && !t.said.has(c.at)){
+        t.said.add(c.at);
+        const from = c.from || t.a;
+        emit(from, c.to, c.ty, c.x);
+      }
+    }
+    if (t.p >= 1) finishTask(t);
+  }
+
+  tickPackets(dt);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   5 · CANVAS
+   ════════════════════════════════════════════════════════════════ */
+const cv = document.getElementById("graph");
+const ctx = cv.getContext("2d");
+let pos = {}, dpr = 1, W = 0, H = 0;
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+let PAL = {};
+function readPalette(){
+  PAL = {
+    line: cssVar("--line"), surface: cssVar("--surface"), surface2: cssVar("--surface-2"),
+    fg: cssVar("--fg"), dim: cssVar("--fg-dim"), faint: cssVar("--fg-faint"),
+    accent: cssVar("--accent"), accent2: cssVar("--accent-2"),
+    ok: cssVar("--ok"), bad: cssVar("--bad"), review: cssVar("--review"), warn: cssVar("--warn"),
+    grid: cssVar("--grid"), glow: parseFloat(cssVar("--glow")) || 0,
+  };
+}
+function typeColor(ty){
+  return { ASSIGN:PAL.accent, QUERY:PAL.accent2, REVIEW:PAL.review, REJECT:PAL.bad,
+           APPROVE:PAL.ok, HANDOFF:PAL.ok, SHIP:PAL.accent, BROADCAST:PAL.faint }[ty] || PAL.dim;
+}
+function agentColor(id, l){ const a = A[id]; return `hsl(${a.hue} 68% ${l ?? 60}%)`; }
+
+function resize(){
+  const r = cv.getBoundingClientRect();
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const R = Math.min(W, H) * 0.345;
+  pos.atlas = { x: W/2, y: H/2, r: 30 };
+  RING.forEach((id, i) => {
+    const ang = -Math.PI/2 + i * (Math.PI*2/6);
+    pos[id] = { x: W/2 + Math.cos(ang)*R, y: H/2 + Math.sin(ang)*R, r: 24 };
+  });
+}
+
+const PEER = [["koda","nova"],["nova","sable"],["vera","koda"],["orion","lyra"],["nova","orion"],["sable","lyra"]];
+
+function curve(a, b){
+  const p = pos[a], q = pos[b];
+  const mx = (p.x+q.x)/2, my = (p.y+q.y)/2;
+  const dx = q.x-p.x, dy = q.y-p.y, d = Math.hypot(dx,dy) || 1;
+  const bend = (a === "atlas" || b === "atlas") ? 0.05 : 0.17;
+  return { p, q, cx: mx - dy/d * d * bend, cy: my + dx/d * d * bend };
+}
+function pointOn(c, k){
+  const u = 1-k;
+  return { x: u*u*c.p.x + 2*u*k*c.cx + k*k*c.q.x,
+           y: u*u*c.p.y + 2*u*k*c.cy + k*k*c.q.y };
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  if (!W) return;
+
+  // ambient grid
+  ctx.strokeStyle = PAL.grid; ctx.lineWidth = 1;
+  const g = 34;
+  ctx.beginPath();
+  for (let x = (W/2)%g; x < W; x += g){ ctx.moveTo(x,0); ctx.lineTo(x,H); }
+  for (let y = (H/2)%g; y < H; y += g){ ctx.moveTo(0,y); ctx.lineTo(W,y); }
+  ctx.stroke();
+
+  // orbit ring
+  const R = Math.min(W,H)*0.345;
+  ctx.strokeStyle = PAL.line; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(W/2, H/2, R, 0, Math.PI*2); ctx.stroke();
+
+  // edges
+  const drawEdge = (a,b,strong) => {
+    const c = curve(a,b);
+    ctx.strokeStyle = strong ? PAL.line : PAL.grid;
+    ctx.lineWidth = strong ? 1.2 : 1;
+    ctx.beginPath(); ctx.moveTo(c.p.x,c.p.y); ctx.quadraticCurveTo(c.cx,c.cy,c.q.x,c.q.y); ctx.stroke();
+  };
+  RING.forEach(id => drawEdge("atlas", id, !focusAgent || focusAgent==="atlas" || focusAgent===id));
+  PEER.forEach(([a,b]) => drawEdge(a,b, !focusAgent || focusAgent===a || focusAgent===b));
+
+  // packets
+  if (S){
+    let inflight = 0;
+    for (const pk of S.packets){
+      const k = Math.min(1, pk.k);
+      const c = curve(pk.from, pk.to);
+      const col = typeColor(pk.type);
+      if (pk.k < 1) inflight++;
+      const fade = pk.k > 1 ? Math.max(0, 1 - (pk.k-1)/0.5) : 1;
+      const dimmed = focusAgent && focusAgent !== pk.from && focusAgent !== pk.to;
+      ctx.globalAlpha = fade * (dimmed ? 0.14 : 1);
+
+      // trail
+      if (!reduced){
+        ctx.lineWidth = 2; ctx.strokeStyle = col; ctx.globalAlpha *= 0.3;
+        ctx.beginPath();
+        const steps = 10;
+        for (let i=0;i<=steps;i++){
+          const kk = Math.max(0, k - (1-i/steps)*0.13);
+          const pt = pointOn(c, kk);
+          i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = fade * (dimmed ? 0.14 : 1);
+      }
+      // head
+      const pt = pointOn(c, k);
+      if (PAL.glow && !reduced){ ctx.shadowColor = col; ctx.shadowBlur = 12; }
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, pk.k < 1 ? 4 : 4*fade, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // arrival ring
+      if (pk.k >= 1){
+        ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.globalAlpha = fade*0.8;
+        ctx.beginPath(); ctx.arc(c.q.x, c.q.y, pos[pk.to].r + (pk.k-1)*44, 0, Math.PI*2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    el.graphCount.textContent = `${inflight} packet${inflight===1?"":"s"} in flight`;
+  }
+
+  // nodes
+  const order = ["atlas", ...RING];
+  for (const id of order){
+    const p = pos[id], a = A[id];
+    const st = S ? S.agents[id] : { state:"idle", p:0 };
+    const dimmed = focusAgent && focusAgent !== id;
+    ctx.globalAlpha = dimmed ? 0.3 : 1;
+
+    // halo while working
+    if (st.state !== "idle" && !reduced){
+      const pulse = 0.5 + 0.5*Math.sin(performance.now()/420);
+      ctx.fillStyle = agentColor(id, 55);
+      ctx.globalAlpha = (dimmed?0.08:0.13) * (0.6 + pulse*0.4);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 11 + pulse*5, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = dimmed ? 0.3 : 1;
+    }
+
+    // body
+    ctx.fillStyle = PAL.surface2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = st.state === "idle" ? PAL.line : agentColor(id, 58);
+    ctx.lineWidth = st.state === "idle" ? 1.2 : 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.stroke();
+
+    // progress arc
+    if (st.task){
+      ctx.strokeStyle = st.state === "blocked" ? PAL.bad : agentColor(id, 60);
+      ctx.lineWidth = 3; ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r + 6, -Math.PI/2, -Math.PI/2 + Math.PI*2*st.p);
+      ctx.stroke();
+      ctx.lineCap = "butt";
+    }
+
+    // scan ring on hub
+    if (id === "atlas" && !reduced){
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(performance.now()/1600);
+      ctx.strokeStyle = PAL.accent; ctx.globalAlpha = (dimmed?0.1:0.42); ctx.lineWidth = 1.4;
+      ctx.setLineDash([5, 9]);
+      ctx.beginPath(); ctx.arc(0, 0, p.r + 13, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+      ctx.globalAlpha = dimmed ? 0.3 : 1;
+    }
+
+    // label
+    ctx.fillStyle = agentColor(id, PAL.glow ? 66 : 38);
+    ctx.font = `600 ${id==="atlas"?13:11.5}px Saira, sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(a.name, p.x, p.y - 4);
+    ctx.fillStyle = PAL.faint;
+    ctx.font = "500 8.5px 'IBM Plex Mono', monospace";
+    ctx.fillText(a.role.toUpperCase().slice(0,13), p.x, p.y + 9);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   6 · DOM RENDER
+   ════════════════════════════════════════════════════════════════ */
+const el = {};
+["missionSel","runBtn","stopBtn","resetBtn","themeBtn","mCode","mTitle","mBrief","mPhase","metrics",
+ "roster","rosterCount","dossier","graphCount","bus","busCount","lanes","ledgerCount",
+ "files","buildCount","readyPct","readyBar","releaseSlot","clock",
+ "objectivePanel","objective","presets","liveStatus","noticeSlot","speedGroup"]
+ .forEach(k => el[k] = document.getElementById(k));
+
+function fmtT(s){
+  const m = Math.floor(s/60), r = Math.floor(s%60);
+  return `T+${String(m).padStart(2,"0")}:${String(r).padStart(2,"0")}`;
+}
+
+function buildRoster(){
+  el.roster.innerHTML = "";
+  AGENTS.forEach(a => {
+    const b = document.createElement("button");
+    b.className = "agent"; b.dataset.id = a.id; b.type = "button";
+    b.style.setProperty("--ah", agentColor(a.id, 58));
+    b.setAttribute("aria-pressed","false");
+    b.innerHTML = `
+      <div class="agent-top">
+        <span class="agent-name">${a.name}</span>
+        <span class="agent-role">${a.role}</span>
+      </div>
+      <div class="agent-state"><span class="pip"></span><span class="txt">idle</span></div>
+      <div class="bar"><i></i></div>`;
+    b.addEventListener("click", () => {
+      focusAgent = focusAgent === a.id ? null : a.id;
+      syncRoster(); renderDossier(); filterBus();
+    });
+    el.roster.appendChild(b);
+  });
+}
+
+function syncRoster(){
+  el.roster.querySelectorAll(".agent").forEach(b => {
+    const id = b.dataset.id, st = S ? S.agents[id] : null;
+    b.setAttribute("aria-pressed", String(focusAgent === id));
+    const pip = b.querySelector(".pip"), txt = b.querySelector(".txt"), bar = b.querySelector(".bar i");
+    pip.className = "pip" + (st && st.state !== "idle" ? " " + st.state : "");
+    txt.textContent = st && st.task ? `${st.task.id} · ${st.task.t}` : (S && S.finished ? "signed off" : "idle");
+    bar.style.width = (st && st.task ? st.p*100 : 0) + "%";
+  });
+  el.rosterCount.textContent = S
+    ? `${Object.values(S.agents).filter(a=>a.state!=="idle").length} active / 7`
+    : "7 online";
+}
+
+function renderDossier(){
+  if (!focusAgent){ el.dossier.hidden = true; return; }
+  const a = A[focusAgent], st = S ? S.agents[focusAgent] : {done:0,sent:0,recv:0};
+  el.dossier.hidden = false;
+  el.dossier.style.setProperty("--dh", agentColor(a.id, 58));
+  el.dossier.innerHTML = `
+    <h4>${a.name}</h4>
+    <p>${a.bio}</p>
+    <dl>
+      <div><dt>Tasks</dt><dd>${st.done}</dd></div>
+      <div><dt>Sent</dt><dd>${st.sent}</dd></div>
+      <div><dt>Received</dt><dd>${st.recv}</dd></div>
+    </dl>`;
+}
+
+function renderMsg(m){
+  if (el.bus.querySelector(".empty")) el.bus.innerHTML = "";
+  const node = document.createElement("article");
+  node.className = "msg";
+  node.dataset.from = m.from; node.dataset.to = m.to;
+  const col = `var(${TYPE_COLOR[m.type] || "--fg-dim"})`;
+  const toLabel = m.to === "all" ? "ALL" : A[m.to].name;
+  node.innerHTML = `
+    <time class="mono">${fmtT(m.t)}</time>
+    <div>
+      <div class="hdr">
+        <span class="who" style="color:${agentColor(m.from, PAL.glow?64:38)}">${A[m.from].name}</span>
+        <span class="arrow">→</span>
+        <span class="who" style="color:${m.to==="all"?"var(--fg-faint)":agentColor(m.to, PAL.glow?64:38)}">${toLabel}</span>
+        <span class="tag" style="color:${col}">${m.type}</span>
+      </div>
+      <div class="body">${m.text}</div>
+    </div>`;
+  el.bus.appendChild(node);
+  while (el.bus.children.length > 220) el.bus.removeChild(el.bus.firstChild);
+  const near = el.bus.scrollHeight - el.bus.scrollTop - el.bus.clientHeight < 140;
+  if (near) el.bus.scrollTop = el.bus.scrollHeight;
+  el.busCount.textContent = `${S.msgs.length} msgs`;
+  filterBus(node);
+}
+
+function filterBus(only){
+  const nodes = only ? [only] : el.bus.querySelectorAll(".msg");
+  nodes.forEach(n => {
+    if (!n.dataset) return;
+    const hit = !focusAgent || n.dataset.from === focusAgent || n.dataset.to === focusAgent || n.dataset.to === "all";
+    n.classList.toggle("dim", !hit);
+  });
+}
+
+const LANES = [["queued","Queued"],["active","In progress"],["review","Under review"],["done","Done"]];
+function renderLanes(){
+  if (!S) return;
+  const groups = { queued:[], active:[], review:[], done:[] };
+  S.tasks.forEach(t => {
+    if (t.status === "done") groups.done.push(t);
+    else if (t.status === "active") (t.a === "sable" ? groups.review : groups.active).push(t);
+    else groups.queued.push(t);
+  });
+  el.lanes.innerHTML = LANES.map(([k, label]) => `
+    <div class="lane">
+      <h4><span>${label}</span><span>${groups[k].length}</span></h4>
+      ${groups[k].slice(0, k==="done" ? 40 : 20).map(t => `
+        <div class="card ${t.status==="done"?"done":""}" style="--ah:${agentColor(t.a,58)}">
+          <div class="id">${t.id} · ${A[t.a].name}${t.rework?" · REWORK":""}</div>
+          <div class="t">${t.t}</div>
+          ${t.status==="active"?`<div class="mini"><i style="width:${(t.p*100).toFixed(0)}%"></i></div>`:""}
+        </div>`).join("")}
+    </div>`).join("");
+  el.ledgerCount.textContent = `${groups.done.length} / ${S.tasks.length}`;
+}
+
+function renderFiles(){
+  if (!S || !S.files.length) return;
+  el.files.innerHTML = S.files.map(f => `
+    <li class="file" data-id="${f.id}">
+      <button type="button" aria-expanded="false">
+        <span class="fpath">${f.f}</span>
+        <span class="fmeta">
+          <span class="chip ${f.v2?"v2":"merged"}">${f.v2?"v2":f.k}</span>
+          <span>${f.l} ln</span>
+          <span style="color:${agentColor(f.by, PAL.glow?60:38)}">${A[f.by].name}</span>
+        </span>
+      </button>
+      <div class="snippet"><pre>${f.s}</pre></div>
+    </li>`).join("");
+  el.files.querySelectorAll(".file > button").forEach(b => {
+    b.addEventListener("click", () => {
+      const li = b.parentElement, open = li.classList.toggle("open");
+      b.setAttribute("aria-expanded", String(open));
+    });
+  });
+  el.buildCount.textContent = `${S.files.length} artifacts`;
+}
+
+function renderMetrics(){
+  if (!S) return;
+  const done = S.tasks.filter(t => t.status === "done").length;
+  const util = Object.values(S.agents).reduce((s,a)=>s+a.busyTime,0) / Math.max(1, S.t*7) * 100;
+  const lines = S.files.reduce((s,f)=>s+f.l,0);
+  const open = S.findings.length - S.tasks.filter(t=>t.rework && t.status==="done").length;
+  const L = S.live;
+  const items = S.mode === "live" ? [
+    ["Tasks complete", `${done}<small> / ${S.tasks.length || "—"}</small>`],
+    ["Model calls", `${L.calls}<small>${L.failed?` · ${L.failed} failed`:""}</small>`],
+    ["Tool calls", L.tools],
+    ["Artifacts", `${S.files.length}<small> · ${lines.toLocaleString()} ln</small>`],
+    ["Findings", `${S.findings.length}<small> · ${open>0?open+" open":"0 open"}</small>`],
+    ["Avg latency", L.calls ? `${(L.ms/L.calls/1000).toFixed(1)}<small>s · ${L.tier}</small>` : `—`],
+  ] : [
+    ["Tasks complete", `${done}<small> / ${S.tasks.length}</small>`],
+    ["Messages on bus", S.msgs.length],
+    ["Artifacts", `${S.files.length}<small> · ${lines.toLocaleString()} ln</small>`],
+    ["Findings", `${S.findings.length}<small> · ${open>0?open+" open":"0 open"}</small>`],
+    ["Rework cycles", S.rework],
+    ["Swarm utilisation", `${util.toFixed(0)}<small>%</small>`],
+  ];
+  el.metrics.innerHTML = items.map(([k,v]) =>
+    `<div class="metric"><div class="k">${k}</div><div class="v mono">${v}</div></div>`).join("");
+
+  const pct = S.tasks.length ? Math.round(done / S.tasks.length * 100) : 0;
+  el.readyPct.textContent = pct + "%";
+  el.readyBar.style.width = pct + "%";
+  el.clock.textContent = fmtT(S.t);
+
+  let phase = "Standing by";
+  if (S.finished) phase = `Signed — ${S.m.version} released`;
+  else if (running || done){
+    const act = S.tasks.filter(t=>t.status==="active");
+    const rw = act.find(t=>t.rework);
+    const rv = act.find(t=>t.a==="sable");
+    phase = rw ? "Rework in flight — release gate held"
+         : rv ? "Adversarial review in progress"
+         : act.length ? `${act.length} task${act.length>1?"s":""} executing`
+         : "Resolving dependencies";
+  }
+  el.mPhase.textContent = phase;
+}
+
+function renderRelease(){
+  const m = S.m;
+  const lines = S.files.reduce((s,f)=>s+f.l,0);
+  const L = S.live;
+  const body = S.mode === "live"
+    ? `${L.calls} model calls${L.tools?` and ${L.tools} tool calls`:""} across ${S.tasks.length} dependent tasks,
+       averaging ${(L.ms/Math.max(1,L.calls)/1000).toFixed(1)}s per turn. SABLE raised
+       ${S.findings.length} blocking finding${S.findings.length===1?"":"s"}, each one sending work back for rework
+       before the gate would open. Nothing here was scripted.`
+    : `Seven agents exchanged ${S.msgs.length} messages across ${S.tasks.length} dependent tasks.
+       SABLE raised ${S.findings.length} blocking finding${S.findings.length===1?"":"s"} that sent work back to NOVA
+       ${S.rework===1?"once":`${S.rework} times`} before the release gate would open.`;
+  el.releaseSlot.innerHTML = `
+    <div class="release">
+      <div>
+        <div class="eyebrow">Mission complete · ${esc(m.code)}${S.mode==="live"?" · live":""}</div>
+        <h3>${esc(m.title)} — ${esc(m.version)} signed by ATLAS</h3>
+        <p>${body}</p>
+      </div>
+      <div class="stats">
+        <div><div class="n mono">${S.files.length}</div><div class="l">Artifacts</div></div>
+        <div><div class="n mono">${lines.toLocaleString()}</div><div class="l">Lines</div></div>
+        <div><div class="n mono">${S.findings.length}</div><div class="l">Caught</div></div>
+        <div><div class="n mono">${fmtT(S.t).slice(2)}</div><div class="l">Elapsed</div></div>
+      </div>
+    </div>`;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   7 · LIVE ENGINE — real Claude calls through the sample capability
+   ════════════════════════════════════════════════════════════════ */
+let sampleFn = null, sampleState = "checking", toolsOk = false, liveAbort = null;
+
+async function initSample(){
+  try{
+    sampleFn = window.claude && window.claude.use ? await window.claude.use("sample") : null;
+  }catch(e){ sampleFn = null; }
+  if (sampleFn){
+    sampleState = "ready";
+    try{ const lim = await sampleFn.limits(); toolsOk = !!(lim && lim.tools); }
+    catch(e){ toolsOk = false; }
+  } else {
+    sampleState = "unavailable";
+  }
+  updateModeUI();
+}
+
+const ROSTER_LINE = AGENTS.map(a => `${a.name} (${a.role})`).join(", ");
+
+function persona(id){
+  const a = A[id];
+  return `You are ${a.name}, the ${a.role} agent inside Cassini, a multi-agent engineering swarm.
+How you work: ${a.bio}
+The swarm is: ${ROSTER_LINE}. Address other agents by their lowercase id (atlas, vera, koda, nova, sable, orion, lyra).
+Write like a senior engineer talking to a peer mid-project: specific, technical, no preamble, no pleasantries. Reference real file paths, numbers, constraints and identifiers. Never write filler like "I will now proceed".`;
+}
+
+const MSG_SHAPE = `"messages": an array of 1-3 objects {"to": "<agent id or \\"all\\">", "type": "QUERY"|"HANDOFF"|"REVIEW"|"BROADCAST", "text": "<one or two sentences in character; wrap identifiers in <code>...</code>>"}`;
+
+function artifactContext(paths, limit){
+  if (!paths.length) return "Nothing upstream yet — you are starting this thread of work.";
+  return paths.map(f =>
+    `--- ${f.f}  (${f.k}, by ${A[f.by].name})\n${String(f.raw || "").slice(0, limit || 1200)}`
+  ).join("\n\n");
+}
+
+function depArtifacts(t){
+  const ids = new Set(t.d || []);
+  return S.files.filter(f => ids.has(f.task));
+}
+
+function buildTools(agentId){
+  if (!toolsOk) return undefined;
+  return [{
+    name: "read_artifact",
+    description: "Read the full source of any artifact already committed to this build. Returns {path, kind, code}. Use it when a summary is not enough and you need the actual contents of another agent's file.",
+    inputSchema: { type:"object", properties:{ path:{ type:"string", description:"Exact artifact path" } }, required:["path"] },
+    execute: (input) => {
+      const p = String(input.path || "");
+      S.live.tools++;
+      const f = [...S.files].reverse().find(x => x.f === p);
+      emit(agentId, "atlas", "TOOL", `Pulled <code>${esc(p)}</code> from the build store.`);
+      if (!f) throw new Error(`no artifact at ${p}. Available: ${S.files.map(x=>x.f).join(", ") || "none"}`);
+      return { path:f.f, kind:f.k, code:String(f.raw || "").slice(0, 6000) };
+    },
+  }];
+}
+
+/* one real model call, streamed into the bus */
+async function ask(agentId, prompt, opts){
+  const o = opts || {};
+  const live = S.live;
+  const row = composingRow(agentId);
+  const t0 = performance.now();
+  live.calls++;
+  let chars = 0;
+  try{
+    const res = await sampleFn.json(prompt, {
+      modelTier: o.tier || "default",
+      cache: false,
+      signal: liveAbort ? liveAbort.signal : undefined,
+      tools: o.tools,
+      onText: ({ text }) => {
+        chars = text.length;
+        live.chars += 0;
+        if (S.agents[agentId]) S.agents[agentId].p = Math.min(0.95, chars / 1100);
+        row.set(text);
+      },
+    });
+    live.ms += performance.now() - t0;
+    live.chars += chars;
+    row.done();
+    return res;
+  }catch(e){
+    live.ms += performance.now() - t0;
+    row.done();
+    live.failed++;
+    throw e;
+  }
+}
+
+/* a transient bus row that shows the answer as it is written */
+function composingRow(agentId){
+  if (el.bus.querySelector(".empty")) el.bus.innerHTML = "";
+  const node = document.createElement("article");
+  node.className = "msg composing";
+  node.dataset.from = agentId; node.dataset.to = agentId;
+  node.innerHTML = `
+    <time class="mono">${fmtT(S.t)}</time>
+    <div>
+      <div class="hdr">
+        <span class="who" style="color:${agentColor(agentId, PAL.glow?64:38)}">${A[agentId].name}</span>
+        <span class="arrow">is composing</span>
+        <span class="tag" style="color:var(--warn)">LIVE</span>
+      </div>
+      <div class="body"><span class="caret"></span></div>
+    </div>`;
+  el.bus.appendChild(node);
+  el.bus.scrollTop = el.bus.scrollHeight;
+  const body = node.querySelector(".body");
+  return {
+    set(text){
+      body.textContent = text.slice(-520);
+      const near = el.bus.scrollHeight - el.bus.scrollTop - el.bus.clientHeight < 240;
+      if (near) el.bus.scrollTop = el.bus.scrollHeight;
+    },
+    done(){ node.remove(); },
+  };
+}
+
+const VALID_TO = new Set([...AGENTS.map(a=>a.id), "all"]);
+const VALID_TYPE = new Set(["QUERY","HANDOFF","REVIEW","BROADCAST","APPROVE","REJECT"]);
+
+function emitModelMessages(from, list, fallbackTo){
+  const out = Array.isArray(list) ? list.slice(0, 3) : [];
+  if (!out.length && fallbackTo) out.push({ to:fallbackTo, type:"HANDOFF", text:"Work complete." });
+  for (const m of out){
+    const to = VALID_TO.has(m && m.to) ? m.to : (fallbackTo || "atlas");
+    const ty = VALID_TYPE.has(m && m.type) ? m.type : "HANDOFF";
+    const tx = String((m && m.text) || "").slice(0, 600);
+    if (!tx.trim()) continue;
+    if (to === from) continue;
+    emit(from, to, ty, fmtMsg(tx));
+  }
+}
+
+function storeArtifact(t, art){
+  if (!art || !art.path || !art.code) return null;
+  const code = String(art.code);
+  const path = String(art.path).replace(/^\/+/, "").slice(0, 120);
+  const prior = S.files.some(f => f.f === path);
+  const f = {
+    f: path,
+    k: String(art.kind || "file").slice(0, 12),
+    l: code.split("\n").length,
+    s: esc(code),
+    raw: code,
+    v2: prior,
+    by: t.a, at: S.t, task: t.id, id: S.files.length,
+  };
+  S.files.push(f);
+  renderFiles();
+  return f;
+}
+
+/* ── planning: ATLAS builds the task graph ── */
+const PLAN_RULES = `Build a dependency graph of 8 to 11 tasks across the six specialists.
+Rules you must follow:
+- vera owns the opening task(s) and has no dependencies.
+- koda designs before nova implements; nova's tasks depend on koda's.
+- sable owns exactly two review tasks, each depending on nova tasks that produce something reviewable.
+- orion depends on nova and on sable's reviews. lyra depends on orion.
+- The final task is owned by atlas, titled as a sign-off, and depends on orion's and lyra's terminal tasks.
+- Task ids are T01, T02, ... in dependency order. Every dep must name an earlier id.
+- Titles are 3-7 words, concrete to this objective, naming the actual thing being built.`;
+
+async function planMission(objective){
+  const prompt = `${persona("atlas")}
+
+A new objective has arrived:
+"""
+${objective}
+"""
+
+${PLAN_RULES}
+
+Reply with ONLY a JSON object:
+{
+  "mission": {"code": "<SHORTNAME-01>", "title": "<6-10 word title>", "brief": "<2 sentences on what gets built and what would make it fail>", "version": "v1.0.0"},
+  "tasks": [{"id":"T01","agent":"vera","title":"...","deps":[]}]
+}`;
+  const plan = await ask("atlas", prompt, { tier:"default" });
+  return normalisePlan(plan, objective);
+}
+
+function normalisePlan(plan, objective){
+  const m = (plan && plan.mission) || {};
+  const mission = {
+    code: String(m.code || "SWARM-01").slice(0, 18).toUpperCase(),
+    title: String(m.title || objective).slice(0, 110),
+    brief: String(m.brief || objective).slice(0, 420),
+    version: /^v\d/.test(String(m.version || "")) ? String(m.version) : "v1.0.0",
+  };
+  const raw = Array.isArray(plan && plan.tasks) ? plan.tasks : [];
+  const seen = new Set();
+  const tasks = [];
+  for (const r of raw){
+    const id = String((r && r.id) || "").trim();
+    const agent = String((r && r.agent) || "").toLowerCase();
+    if (!id || seen.has(id) || !A[agent]) continue;
+    const deps = (Array.isArray(r.deps) ? r.deps : [])
+      .map(String).filter(d => seen.has(d));           // only backward edges — cycles impossible
+    seen.add(id);
+    tasks.push({
+      id, a: agent, t: String(r.title || "Untitled").slice(0, 80),
+      d: deps, status:"queued", p:0, out:[], said:new Set(),
+      review: agent === "sable", rounds: 0,
+    });
+    if (tasks.length >= 14) break;
+  }
+  if (tasks.length < 3) throw { code:"invalid_json", message:"plan too small" };
+  // guarantee a terminal atlas sign-off
+  if (tasks[tasks.length-1].a !== "atlas"){
+    const terminals = tasks.filter(t => !tasks.some(x => x.d.includes(t.id))).map(t => t.id);
+    tasks.push({ id:"T"+String(tasks.length+1).padStart(2,"0"), a:"atlas", t:"Integration review & sign-off",
+      d:terminals, status:"queued", p:0, out:[], said:new Set(), signoff:true, rounds:0 });
+  } else {
+    tasks[tasks.length-1].signoff = true;
+  }
+  return { mission, tasks };
+}
+
+/* ── one agent turn ── */
+async function runTask(t){
+  const deps = depArtifacts(t);
+  const index = S.files.map(f => `${f.f} (${f.k}, ${A[f.by].name})`).join("\n") || "nothing yet";
+  const header = `${persona(t.a)}
+
+MISSION ${S.m.code} — ${S.m.title}
+${S.m.brief}
+
+EVERYTHING COMMITTED TO THE BUILD SO FAR:
+${index}
+${toolsOk ? "\nYou may call read_artifact(path) to read any of those in full." : ""}`;
+
+  let prompt, tier = "default";
+
+  if (t.signoff){
+    const findings = S.findings.map(f =>
+      `- [${f.severity}] ${f.title} — ${f.closed ? "CLOSED" : "OPEN"}`).join("\n") || "- none raised";
+    prompt = `${header}
+
+YOUR TASK (${t.id}): ${t.t}
+
+Findings raised by SABLE during this mission:
+${findings}
+
+UPSTREAM WORK:
+${artifactContext(deps, 900)}
+
+Decide whether this release ships. Reply with ONLY JSON:
+{
+  ${MSG_SHAPE} — your last message must be to "all", type "BROADCAST", and state the decision,
+  "artifact": {"path":"RELEASE-${S.m.version}.md","kind":"release","code":"<8-12 lines: one GATE line per gate with a ✓ or ✗ and the evidence, then a SIGNED line>"}
+}`;
+  }
+  else if (t.review){
+    const targets = deps.length ? deps : S.files.slice(-3);
+    if (t.recheck){
+      prompt = `${header}
+
+YOUR TASK (${t.id}): ${t.t}
+
+This is a RE-REVIEW. You previously raised:
+  [${t.recheck.severity}] ${t.recheck.title}
+  ${t.recheck.detail}
+
+The fix that was submitted:
+${artifactContext(targets, 1600)}
+
+Decide whether that specific finding is now closed. Judge the fix on its merits — do not invent a new blocking issue to look thorough.
+Reply with ONLY JSON:
+{
+  ${MSG_SHAPE},
+  "verdict": "approve" | "reject",
+  "finding": {"severity":"critical|high|medium","title":"<same finding>","detail":"<what you re-tested and the result>","owner":"<agent id>","target_path":"<path>"},
+  "artifact": {"path":"eval/${t.id.toLowerCase()}_recheck.md","kind":"report","code":"<6-10 lines of the re-test record>"}
+}`;
+    } else {
+      prompt = `${header}
+
+YOUR TASK (${t.id}): ${t.t}
+
+ARTIFACTS UNDER REVIEW:
+${artifactContext(targets, 2200)}
+
+Attack this work the way a hostile reviewer would. Look specifically for: silent failure under a degraded dependency, missing backpressure or dead-letter path, blast radius that is larger than intended, data retained or logged that should not be, a headline metric that hides a failing subgroup, an authorisation check applied to the wrong object, and unbounded alert or retry storms.
+Describe what you did to find it and exactly what breaks, with concrete numbers you reason your way to. Approve only if you genuinely cannot find a specific failure mode.
+
+Reply with ONLY JSON:
+{
+  ${MSG_SHAPE} — if you reject, one message must be to the owning agent explaining the defect,
+  "verdict": "approve" | "reject",
+  "finding": {"severity":"critical|high|medium","title":"<6-10 words>","detail":"<2-3 sentences: what you did, what broke, the number that proves it>","owner":"<id of the agent who must fix it>","target_path":"<artifact path>"},
+  "artifact": {"path":"eval/${t.id.toLowerCase()}_audit.md","kind":"report","code":"<6-12 lines of a findings record>"}
+}`;
+    }
+  }
+  else if (t.rework){
+    const fix = t.fixFor || {};
+    prompt = `${header}
+
+YOUR TASK (${t.id}): ${t.t}
+
+SABLE rejected your work and blocked the release gate:
+  [${fix.severity}] ${fix.title}
+  ${fix.detail}
+  Affected: ${fix.target_path || "see build"}
+
+The artifact as it stands:
+${artifactContext(deps.length ? deps : S.files.filter(f => f.f === fix.target_path), 2000)}
+
+Fix the defect properly — not a flag, not a wider timeout. Reply with ONLY JSON:
+{
+  ${MSG_SHAPE} — one message to sable asking for the re-test,
+  "artifact": {"path":"${fix.target_path || "fix/patch.py"}","kind":"service","code":"<8-16 lines of the corrected file showing the actual fix>"}
+}`;
+  }
+  else {
+    const next = S.tasks.find(x => x.d.includes(t.id));
+    prompt = `${header}
+
+YOUR TASK (${t.id}): ${t.t}
+
+UPSTREAM WORK YOU BUILD ON:
+${artifactContext(deps, 1500)}
+
+Do your part of the mission and commit one artifact. Reply with ONLY JSON:
+{
+  ${MSG_SHAPE}${next ? ` — one message must be addressed to "${next.a}", who works from what you produce` : ""},
+  "artifact": {"path":"<realistic repo path with a real extension>","kind":"spec|design|schema|service|pipeline|model|infra|docs","code":"<8-16 lines of the actual file content — real code or real config, no placeholders, no markdown fences>","summary":"<one line>"}
+}`;
+  }
+
+  const res = await ask(t.a, prompt, { tier, tools: buildTools(t.a) });
+  if (!running) return;
+
+  emitModelMessages(t.a, res && res.messages, t.review ? "atlas" : "atlas");
+  const saved = storeArtifact(t, res && res.artifact);
+  if (saved) t.out = [saved];
+
+  if (t.review) handleVerdict(t, res);
+  if (t.signoff) S.signedBy = true;
+
+  t.status = "done"; t.p = 1;
+  const ag = S.agents[t.a];
+  ag.state = "idle"; ag.task = null; ag.p = 0; ag.done++;
+}
+
+function handleVerdict(t, res){
+  const verdict = String((res && res.verdict) || "approve").toLowerCase();
+  const f = (res && res.finding) || {};
+  const owner = A[String(f.owner || "").toLowerCase()] ? String(f.owner).toLowerCase() : "nova";
+  const title = String(f.title || "Unspecified defect").slice(0, 90);
+  const detail = String(f.detail || "").slice(0, 700);
+
+  if (t.recheck){
+    const prior = S.findings.find(x => x.title === t.recheck.title);
+    if (verdict === "approve"){
+      if (prior) prior.closed = true;
+      emit("sable", owner, "APPROVE", fmtMsg(`Re-tested: ${t.recheck.title}. ${detail || "Finding closed."}`));
+    } else if (t.rounds >= 2){
+      if (prior){ prior.closed = false; prior.waived = true; }
+      emit("sable", "atlas", "BROADCAST",
+        fmtMsg(`${t.recheck.title} is still not fully closed after two rounds. Recording it as a known gap rather than holding the gate further.`));
+    } else {
+      openRework(t, { severity:f.severity||"high", title:t.recheck.title, detail, owner, target_path:f.target_path });
+    }
+    return;
+  }
+
+  if (verdict === "reject"){
+    S.findings.push({ severity:String(f.severity||"high"), title, detail, owner, closed:false });
+    S.rework++;
+    emit("sable", owner, "REJECT", fmtMsg(detail || title));
+    openRework(t, { severity:f.severity||"high", title, detail, owner, target_path:f.target_path });
+  } else {
+    emit("sable", "atlas", "APPROVE", fmtMsg(`${t.t} holds up. No blocking finding.`));
+  }
+}
+
+/* insert a rework task and a re-review, and make everything downstream wait for them */
+function openRework(reviewTask, finding){
+  const dependents = S.tasks.filter(x => x.d.includes(reviewTask.id));
+  const rid = "R" + (++S.seq);
+  const vid = "V" + (++S.seq);
+  S.tasks.push({
+    id: rid, a: finding.owner, t: `Rework — ${finding.title}`.slice(0, 72),
+    d: [reviewTask.id], status:"queued", p:0, out:[], said:new Set(),
+    rework:true, fixFor:finding, rounds:0,
+  });
+  S.tasks.push({
+    id: vid, a: "sable", t: `Re-review — ${finding.title}`.slice(0, 72),
+    d: [rid], status:"queued", p:0, out:[], said:new Set(),
+    review:true, recheck:finding, rounds:(reviewTask.rounds || 0) + 1,
+  });
+  dependents.forEach(x => x.d.push(vid));
+  renderLanes();
+}
+
+/* ── the live scheduler ── */
+async function driveGraph(){
+  const inflight = new Set();
+  while (running && !S.finished){
+    const ready = S.tasks.filter(t =>
+      t.status === "queued" && depsClear(t) && S.agents[t.a].state === "idle");
+
+    while (ready.length && inflight.size < 2){
+      const t = ready.shift();
+      startTask(t);
+      let p;
+      p = runTask(t)
+        .catch(e => { failTask(t, e); })
+        .finally(() => inflight.delete(p));
+      inflight.add(p);
+    }
+
+    if (!inflight.size){
+      if (S.tasks.length && S.tasks.every(t => t.status === "done" || t.status === "failed")) finishMission();
+      break;
+    }
+    await Promise.race([...inflight]);
+    renderLanes(); renderMetrics(); syncRoster();
+  }
+}
+
+function failTask(t, e){
+  const code = (e && e.code) || "upstream_error";
+  t.status = "failed"; t.p = 0;
+  const ag = S.agents[t.a];
+  ag.state = "idle"; ag.task = null; ag.p = 0;
+  if (code === "cancelled") return;
+  emit(t.a, "atlas", "BROADCAST", `Could not complete <code>${esc(t.id)}</code> — ${esc(code)}.`);
+  stopLive(code);
+}
+
+const ERR_COPY = {
+  not_granted:["Claude access not allowed for this page","Allow this artifact to use Claude when the dialog appears, then run again. Scripted mode works without it."],
+  sampling_disabled:["Claude is not available on this account","Scripted mode still runs the full swarm."],
+  rate_limited:["Rate limited","Too many calls at once, or you have hit your own usage limit. Wait a minute and run again."],
+  session_expired:["Signed out","Sign in to Claude again, then run."],
+  invalid_json:["An agent replied in the wrong shape","That turn could not be parsed. Run again, or use scripted mode."],
+  refused:["Claude declined that objective","Rephrase it as an engineering task."],
+  prompt_too_large:["Context grew too large","Try a narrower objective."],
+  tools_unavailable:["Page tools unavailable here","The swarm ran without read_artifact."],
+};
+
+function showNotice(code){
+  const [title, body] = ERR_COPY[code] || ["Something interrupted the run", "Try again, or switch to scripted mode."];
+  const warn = code === "rate_limited" || code === "invalid_json";
+  el.noticeSlot.innerHTML =
+    `<div class="notice" style="--nc:var(${warn ? "--warn" : "--bad"})">
+       <span class="mono" aria-hidden="true">!</span>
+       <span><b>${esc(title)}</b> — ${esc(body)} <span class="mono">(${esc(code)})</span></span>
+     </div>`;
+}
+
+function stopLive(code){
+  if (!running) return;
+  running = false;
+  if (liveAbort) try{ liveAbort.abort(); }catch(e){}
+  setRun(false);
+  el.stopBtn.hidden = true;
+  if (code) showNotice(code);
+  Object.values(S.agents).forEach(a => { a.state = "idle"; a.task = null; a.p = 0; });
+  syncRoster();
+}
+
+async function runLive(){
+  const objective = el.objective.value.trim();
+  if (!objective){ el.objective.focus(); return; }
+
+  S = newState(el.missionSel.value, "live");
+  focusAgent = null;
+  el.noticeSlot.innerHTML = "";
+  el.bus.innerHTML = "";
+  el.files.innerHTML = `<li class="empty">Nothing committed yet.<span class="mono">Artifacts appear as agents finish tasks</span></li>`;
+  el.releaseSlot.innerHTML = "";
+  el.dossier.hidden = true;
+  el.mCode.textContent = "Mission — planning";
+  el.mTitle.textContent = objective.slice(0, 110);
+  el.mBrief.textContent = "ATLAS is decomposing the objective into a dependency graph.";
+  renderLanes(); renderMetrics(); syncRoster();
+
+  liveAbort = new AbortController();
+  running = true; setRun(true); el.stopBtn.hidden = false;
+
+  try{
+    emit("atlas", "all", "BROADCAST", `Objective received. Decomposing into a task graph and assigning the roster.`);
+    S.agents.atlas.state = "working";
+    S.agents.atlas.task = { id:"PLAN", t:"Decompose objective", p:0 };
+
+    const { mission, tasks } = await planMission(objective);
+    if (!running) return;
+
+    S.m = mission;
+    S.tasks = tasks;
+    S.agents.atlas.state = "idle"; S.agents.atlas.task = null; S.agents.atlas.p = 0;
+    el.mCode.textContent = `Mission ${mission.code} · live`;
+    el.mTitle.textContent = mission.title;
+    el.mBrief.textContent = mission.brief;
+    emit("atlas", "all", "PLAN",
+      fmtMsg(`Graph built: ${tasks.length} tasks across ${new Set(tasks.map(t=>t.a)).size} agents. Dispatching as dependencies clear.`));
+    renderLanes();
+
+    await driveGraph();
+  }catch(e){
+    const code = (e && e.code) || "upstream_error";
+    if (code !== "cancelled") showNotice(code);
+    stopLive();
+  }
+  if (S && S.tasks.length && S.tasks.every(t => t.status === "done")) finishMission();
+  else { running = false; setRun(false); el.stopBtn.hidden = true; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   8 · LOOP + CONTROLS
+   ════════════════════════════════════════════════════════════════ */
+let acc = 0;
+function frame(ts){
+  const dt = Math.min(0.08, (ts - lastFrame) / 1000 || 0);
+  lastFrame = ts;
+  if (S){
+    if (S.mode === "sim" && running && !S.finished){
+      step(dt * speed);
+    } else {
+      if (S.mode === "live" && running && !S.finished){
+        S.t += dt;
+        for (const id in S.agents){
+          const a = S.agents[id];
+          if (a.state !== "idle") a.busyTime += dt;
+        }
+      }
+      tickPackets(dt);
+    }
+    acc += dt;
+    if (acc > 0.12){ acc = 0; syncRoster(); renderLanes(); renderMetrics(); }
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function setRun(on){
+  running = on;
+  if (mode === "live"){
+    el.runBtn.textContent = on ? "◆ Swarm running…" : (S && S.finished ? "✓ Complete" : "◆ Dispatch swarm");
+  } else {
+    el.runBtn.textContent = on ? "❚❚ Pause"
+      : (S && S.finished ? "✓ Complete" : (S && S.msgs.length ? "▶ Resume" : "▶ Run swarm"));
+  }
+  el.runBtn.setAttribute("aria-pressed", String(on));
+  el.runBtn.disabled = mode === "live" && (on || sampleState !== "ready");
+}
+
+function loadMission(id){
+  if (running && mode === "live") stopLive();
+  S = newState(id, mode);
+  focusAgent = null;
+  el.noticeSlot.innerHTML = "";
+  if (mode === "sim"){
+    el.mCode.textContent = `Mission ${S.m.code}`;
+    el.mTitle.textContent = S.m.title;
+    el.mBrief.textContent = S.m.brief;
+  } else {
+    el.mCode.textContent = "Mission — not yet planned";
+    el.mTitle.textContent = "Awaiting an objective";
+    el.mBrief.textContent = "ATLAS will decompose whatever you give it into a dependency graph, then the swarm works it. Every message and artifact below comes from a real model call.";
+  }
+  el.bus.innerHTML = `<div class="empty">The bus is quiet.<span class="mono">${mode==="live"?"Give the swarm an objective and dispatch":"Press run swarm to open the mission"}</span></div>`;
+  el.files.innerHTML = `<li class="empty">Nothing committed yet.<span class="mono">Artifacts appear as agents finish tasks</span></li>`;
+  el.busCount.textContent = "0 msgs";
+  el.buildCount.textContent = "0 artifacts";
+  el.releaseSlot.innerHTML = "";
+  el.dossier.hidden = true;
+  el.stopBtn.hidden = true;
+  setRun(false);
+  syncRoster(); renderLanes(); renderMetrics();
+}
+
+el.missionSel.innerHTML = Object.entries(MISSIONS)
+  .map(([k,m]) => `<option value="${k}">${m.code} — ${m.title}</option>`).join("");
+el.missionSel.addEventListener("change", e => {
+  loadMission(e.target.value);
+  if (mode === "live") el.objective.value = MISSIONS[e.target.value].brief;
+});
+
+el.presets.innerHTML = Object.entries(MISSIONS)
+  .map(([k,m]) => `<button type="button" class="preset" data-k="${k}">${m.code}</button>`).join("")
+  + `<button type="button" class="preset" data-k="__blank">blank</button>`;
+el.presets.addEventListener("click", e => {
+  const b = e.target.closest(".preset"); if (!b) return;
+  el.objective.value = b.dataset.k === "__blank" ? "" : MISSIONS[b.dataset.k].brief;
+  el.objective.focus();
+});
+
+el.runBtn.addEventListener("click", () => {
+  if (mode === "live"){
+    if (!running) runLive();
+    return;
+  }
+  if (S.finished) return;
+  if (!running && !S.msgs.length){
+    emit("atlas","all","BROADCAST",
+      `Mission <code>${S.m.code}</code> open: ${S.m.title}. Graph has ${S.tasks.length} tasks. Dispatching as dependencies clear.`);
+  }
+  setRun(!running);
+});
+el.stopBtn.addEventListener("click", () => stopLive());
+el.resetBtn.addEventListener("click", () => loadMission(el.missionSel.value));
+
+function updateModeUI(){
+  document.querySelectorAll(".mode").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.m === mode)));
+  el.objectivePanel.hidden = mode !== "live";
+  el.speedGroup.hidden = mode === "live";
+  const liveBtn = document.querySelector('.mode[data-m="live"]');
+  if (sampleState === "unavailable"){
+    liveBtn.disabled = true;
+    liveBtn.title = "Live mode needs this page open in Claude";
+  }
+  el.liveStatus.innerHTML = sampleState === "checking"
+    ? "checking for a Claude runtime…"
+    : sampleState === "unavailable"
+      ? `No Claude runtime in this view.<br>Scripted mode runs the full swarm.`
+      : `Claude runtime <b style="color:var(--ok)">connected</b><br>tier <b>default</b> · tools ${toolsOk ? "<b style=\"color:var(--ok)\">on</b>" : "off"} · 2 agents in parallel<br>calls run on your own Claude usage`;
+  setRun(running);
+}
+
+document.querySelectorAll(".mode").forEach(b => {
+  b.addEventListener("click", () => {
+    if (b.disabled || mode === b.dataset.m) return;
+    if (running) mode === "live" ? stopLive() : setRun(false);
+    mode = b.dataset.m;
+    updateModeUI();
+    loadMission(el.missionSel.value);
+    if (mode === "live" && !el.objective.value) el.objective.value = MISSIONS[el.missionSel.value].brief;
+  });
+});
+document.querySelectorAll(".spd").forEach(b => {
+  b.addEventListener("click", () => {
+    speed = +b.dataset.s;
+    document.querySelectorAll(".spd").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  });
+});
+el.themeBtn.addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  readPalette(); renderFiles(); syncRoster();
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readPalette(); });
+
+addEventListener("resize", () => { resize(); });
+
+/* boot */
+readPalette();
+buildRoster();
+resize();
+loadMission(Object.keys(MISSIONS)[0]);
+el.objective.value = MISSIONS[Object.keys(MISSIONS)[0]].brief;
+updateModeUI();
+requestAnimationFrame(ts => { lastFrame = ts; frame(ts); });
+initSample();
+
+/* keep open viewers' place across republishes */
+try{
+  window.claude?.hot?.snapshot?.(() => ({ m: S?.missionId, s: speed }));
+  const d = window.claude?.hot?.data;
+  if (d && d.m && MISSIONS[d.m]){ el.missionSel.value = d.m; loadMission(d.m); speed = d.s || 2; }
+}catch(e){}
+
+})();
+</script>
+
+</body>
+</html>
