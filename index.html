@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="A multi-agent orchestration console: seven named agents plan, build, review and rework their way to a signed release across a real dependency graph.">
 <meta property="og:title" content="Cassini Swarm Console">
-<meta property="og:description" content="Seven named AI agents negotiate, review, reject and rework their way to a signed release. Watch the message bus live.">
+<meta property="og:description" content="Seven named agents negotiate, review, reject and rework their way to a signed release. Watch the message bus live.">
 <meta property="og:type" content="website">
 <style>
   :root{
@@ -393,7 +393,7 @@ select.ctl{appearance:none;padding-right:26px;background-image:linear-gradient(4
     <div class="controls">
       <div class="ctl-group" role="group" aria-label="Engine mode">
         <button class="ctl mode" data-m="sim" aria-pressed="true">◇ Scripted</button>
-        <button class="ctl mode" data-m="live" aria-pressed="false">◆ Live Claude</button>
+        <button class="ctl mode" data-m="live" aria-pressed="false">◆ Live engine</button>
       </div>
       <select class="ctl" id="missionSel" aria-label="Mission"></select>
       <button class="ctl primary" id="runBtn" aria-pressed="false">▶ Run swarm</button>
@@ -1349,7 +1349,7 @@ function renderRelease(){
 }
 
 /* ════════════════════════════════════════════════════════════════
-   7 · LIVE ENGINE — real Claude calls through the sample capability
+   7 · LIVE ENGINE — real model calls through the host runtime
    ════════════════════════════════════════════════════════════════ */
 let sampleFn = null, sampleState = "checking", toolsOk = false, liveAbort = null;
 
@@ -1787,12 +1787,12 @@ function failTask(t, e){
 }
 
 const ERR_COPY = {
-  not_granted:["Claude access not allowed for this page","Allow this artifact to use Claude when the dialog appears, then run again. Scripted mode works without it."],
-  sampling_disabled:["Claude is not available on this account","Scripted mode still runs the full swarm."],
+  not_granted:["Model access not allowed for this page","Allow this page to use the model runtime when the dialog appears, then run again. Scripted mode works without it."],
+  sampling_disabled:["No model runtime on this account","Scripted mode still runs the full swarm."],
   rate_limited:["Rate limited","Too many calls at once, or you have hit your own usage limit. Wait a minute and run again."],
-  session_expired:["Signed out","Sign in to Claude again, then run."],
+  session_expired:["Signed out","Sign in again, then run."],
   invalid_json:["An agent replied in the wrong shape","That turn could not be parsed. Run again, or use scripted mode."],
-  refused:["Claude declined that objective","Rephrase it as an engineering task."],
+  refused:["The model declined that objective","Rephrase it as an engineering task."],
   prompt_too_large:["Context grew too large","Try a narrower objective."],
   tools_unavailable:["Page tools unavailable here","The swarm ran without read_artifact."],
 };
@@ -1968,13 +1968,13 @@ function updateModeUI(){
   const liveBtn = document.querySelector('.mode[data-m="live"]');
   if (sampleState === "unavailable"){
     liveBtn.disabled = true;
-    liveBtn.title = "Live mode needs this page open in Claude";
+    liveBtn.title = "Live mode needs a model runtime in the host page";
   }
   el.liveStatus.innerHTML = sampleState === "checking"
-    ? "checking for a Claude runtime…"
+    ? "checking for a model runtime…"
     : sampleState === "unavailable"
-      ? `No Claude runtime in this view.<br>Scripted mode runs the full swarm.`
-      : `Claude runtime <b style="color:var(--ok)">connected</b><br>tier <b>default</b> · tools ${toolsOk ? "<b style=\"color:var(--ok)\">on</b>" : "off"} · 2 agents in parallel<br>calls run on your own Claude usage`;
+      ? `No model runtime in this view.<br>Scripted mode runs the full swarm.`
+      : `Model runtime <b style="color:var(--ok)">connected</b><br>tier <b>default</b> · tools ${toolsOk ? "<b style=\"color:var(--ok)\">on</b>" : "off"} · 2 agents in parallel<br>calls run on your own account usage`;
   setRun(running);
 }
 

@@ -39,7 +39,7 @@ The console ships with two ways to drive the same seven agents, the same schedul
 
 ### Scripted — works everywhere
 
-Three hand-built missions with full dependency graphs, real artifacts and planted defects that `SABLE` catches. This is what the public demo link runs, and it needs nothing but a browser.
+Three hand-built missions with full dependency graphs, real artifacts and planted defects that `SABLE` catches. This is what the demo link runs, and it needs nothing but a browser.
 
 | Mission | Objective |
 |---|---|
@@ -47,16 +47,16 @@ Three hand-built missions with full dependency graphs, real artifacts and plante
 | `AEGIS-02` | Autonomous NOC incident response — must be structurally unable to bounce a core router |
 | `LUMEN-03` | Bangla/English document extraction — where a passing average hides a failing subgroup |
 
-### Live Claude — only inside Claude
+### Live engine — when a model runtime is present
 
-Opened as an artifact on claude.ai, the page declares the `sample` runtime capability and every turn becomes a real model call on the viewer's own Claude account:
+When the page is hosted somewhere that injects a model runtime, every turn becomes a real inference call and the whole run is unscripted:
 
-1. **ATLAS plans.** Your objective goes to one call that returns a dependency graph. The page validates it — unknown agents dropped, only backward edges kept so a cycle is structurally impossible, terminal sign-off guaranteed.
+1. **ATLAS plans.** The objective you type goes to one call that returns a dependency graph. The page validates it — unknown agents dropped, only backward edges kept so a cycle is structurally impossible, terminal sign-off guaranteed.
 2. **Agents work in parallel**, two at a time, each with its own persona, the mission context and the upstream artifacts it builds on. Output streams into the bus as it is written.
 3. **Agents have a real tool.** `read_artifact(path)` executes *in the page* — the model decides when to pull another agent's file in full instead of working from a summary. Tool calls appear on the bus.
 4. **SABLE's verdict is the model's.** It finds the defect, names the owner, and the scheduler reshapes the graph around it. Capped at two rounds, then recorded as a known gap.
 
-> **Note:** Live mode requires `window.claude`, which only exists inside the Claude app. On GitHub Pages — or any public host — the toggle disables itself and says so. Nothing is faked to cover the gap.
+> **Note:** a static host has no model runtime, so on the demo link the Live toggle disables itself and says so. Nothing is faked to cover the gap.
 
 ---
 
